@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import unicodedata
-from typing import Dict, Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 
 HEADING_PATTERN = re.compile(r"^(#{1,2})\s+(.+?)\s*$")
@@ -15,6 +15,50 @@ TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
 # These chapters contain authoring instructions rather than visitor-facing facts.
 RETRIEVAL_EXCLUDED_CHAPTERS = frozenset({"1", "34", "35", "36", "37", "38"})
+
+EVIDENCE_VERIFIED = "verified_fact"
+EVIDENCE_VISION = "product_vision"
+EVIDENCE_HISTORICAL = "historical"
+EVIDENCE_UNKNOWN = "unknown"
+EVIDENCE_ATTRIBUTED = "attributed_claim"
+EVIDENCE_POLICY = "policy"
+EVIDENCE_PILOT = "pilot"
+
+EVIDENCE_GUIDANCE = {
+    EVIDENCE_VERIFIED: (
+        "DOĞRULANMIŞ OLGU",
+        "Yalnız bölümde açıkça yazan olguyu söyle; kapsamını genişletme.",
+    ),
+    EVIDENCE_VISION: (
+        "ÜRÜN VİZYONU",
+        "Yalnız 'hedefliyor', 'amaçlıyor' veya 'ürün vizyonunda' dili kullan; "
+        "özelliği şu anda çalışan yetenek gibi sunma.",
+    ),
+    EVIDENCE_HISTORICAL: (
+        "TARİHSEL ÇALIŞMA",
+        "Yalnız geçmişte çalışma yapıldığını söyle; güncel canlı entegrasyon veya "
+        "özellik sonucunu çıkarma.",
+    ),
+    EVIDENCE_UNKNOWN: (
+        "BİLİNMİYOR / DOĞRULANMADI",
+        "Doğrulanmış güncel bilgi olmadığını söyle; geliştirme, pilot, test veya "
+        "canlı durum hakkında varsayım yapma.",
+    ),
+    EVIDENCE_ATTRIBUTED: (
+        "ATFEDİLMİŞ KAMUYA AÇIK İDDİA",
+        "Bilgiyi kamuya açık ürün iletişimine atfet; bağımsız doğrulanmış sonuç veya "
+        "garanti gibi sunma.",
+    ),
+    EVIDENCE_POLICY: (
+        "POLİTİKA / GÜVENLİK SINIRI",
+        "Politikayı tam sınırlarıyla aktar; mutlak güvenlik veya değişmezlik garantisi verme.",
+    ),
+    EVIDENCE_PILOT: (
+        "GENEL ÜRÜN PİLOT DURUMU",
+        "Yalnız ürünün genel pilot durumunu söyle; bu statüyü tek bir entegrasyonun "
+        "veya özelliğin pilotta olduğu sonucuna dönüştürme.",
+    ),
+}
 
 STOP_WORDS = frozenset(
     {
@@ -36,6 +80,7 @@ STOP_WORDS = frozenset(
         "ne",
         "ve",
         "veya",
+        "var",
         "yosuun",
     }
 )
@@ -76,8 +121,18 @@ class KnowledgeSection:
     title: str
     content: str
     order: int
+    evidence_status: str
     normalized_title: str
     normalized_content: str
+
+
+@dataclass(frozen=True)
+class RetrievalResult:
+    """Formatted context plus the strictest answer mode for the current query."""
+
+    context: str
+    evidence_status: str
+    section_titles: Tuple[str, ...]
 
 
 def _normalize(value: str) -> str:
@@ -154,6 +209,21 @@ class KnowledgeService:
     ) -> str:
         """Return compact, relevant and ordered context for one visitor question."""
 
+        return self.retrieve_result(
+            query,
+            max_sections=max_sections,
+            max_chars=max_chars,
+        ).context
+
+    def retrieve_result(
+        self,
+        query: str,
+        *,
+        max_sections: int = 4,
+        max_chars: int = 7000,
+    ) -> RetrievalResult:
+        """Return context and a machine-readable evidence contract."""
+
         if not isinstance(query, str) or not query.strip():
             raise ValueError("Bilgi arama sorgusu boş olmayan bir metin olmalıdır.")
         if max_sections <= 0 or max_chars <= 0:
@@ -170,6 +240,7 @@ class KnowledgeService:
         )
 
         selected: List[KnowledgeSection] = []
+        relevant: List[KnowledgeSection] = []
         core = self._core_section()
         if core is not None:
             selected.append(core)
@@ -178,10 +249,16 @@ class KnowledgeService:
             if score <= 0 or section in selected:
                 continue
             selected.append(section)
+            relevant.append(section)
             if len(selected) >= max_sections:
                 break
 
-        return self._format_with_budget(selected, max_chars)
+        evidence_status = self._answer_status(query, relevant, core)
+        return RetrievalResult(
+            context=self._format_with_budget(selected, max_chars),
+            evidence_status=evidence_status,
+            section_titles=tuple(section.title for section in selected),
+        )
 
     def _load_sections(self) -> List[KnowledgeSection]:
         try:
@@ -207,6 +284,10 @@ class KnowledgeService:
                     title=current_title,
                     content=content,
                     order=len(sections),
+                    evidence_status=self._classify_section(
+                        current_chapter,
+                        current_title,
+                    ),
                     normalized_title=_normalize(current_title),
                     normalized_content=_normalize(content),
                 )
@@ -250,8 +331,26 @@ class KnowledgeService:
                 score += 8
             elif KnowledgeService._has_related_token(token, content_tokens):
                 score += 2
+            if (
+                token in TOPIC_ALIASES["entegrasyon"]
+                and token not in {"entegrasyon", "pazaryeri"}
+                and token in content_tokens
+            ):
+                score += 30
         if len(normalized_query) >= 5 and normalized_query in section.normalized_content:
             score += 12
+        price_intent = any(
+            phrase in normalized_query
+            for phrase in ("fiyati ne", "fiyat ne", "fiyatlandirma", "paket", "ucret")
+        )
+        if price_intent and section.chapter.startswith("14."):
+            score += 30
+        security_intent = any(
+            phrase in normalized_query
+            for phrase in ("guven", "gizlilik", "kvkk", "cerez", "verilerim")
+        )
+        if security_intent and section.chapter.startswith("20."):
+            score += 24
         return score
 
     @staticmethod
@@ -275,6 +374,73 @@ class KnowledgeService:
         return None
 
     @staticmethod
+    def _classify_section(chapter: str, title: str) -> str:
+        number_match = TOP_LEVEL_NUMBER_PATTERN.match(chapter)
+        chapter_number = number_match.group(1) if number_match else ""
+        normalized_title = _normalize(title)
+
+        if chapter_number == "13":
+            if "13 2 trendyol" in normalized_title:
+                return EVIDENCE_HISTORICAL
+            if "13 3 diger pazar yerleri" in normalized_title:
+                return EVIDENCE_UNKNOWN
+            return EVIDENCE_VISION
+        if chapter_number == "14":
+            return EVIDENCE_UNKNOWN
+        if chapter_number == "15":
+            return EVIDENCE_PILOT
+        if chapter_number in {"16", "17"}:
+            return EVIDENCE_ATTRIBUTED
+        if chapter_number == "18":
+            return EVIDENCE_HISTORICAL
+        if chapter_number in {"19", "21", "22", "23", "24"}:
+            return EVIDENCE_VERIFIED
+        if chapter_number == "20":
+            return EVIDENCE_POLICY
+        if chapter_number == "27":
+            if "fiyati ne kadar" in normalized_title:
+                return EVIDENCE_UNKNOWN
+            if "trendyol entegrasyonu" in normalized_title:
+                return EVIDENCE_HISTORICAL
+            if "hangi pazar yerleri" in normalized_title:
+                return EVIDENCE_UNKNOWN
+            if "verilerim guvende" in normalized_title or "google analytics" in normalized_title:
+                return EVIDENCE_POLICY
+            if "demo alabilir" in normalized_title:
+                return EVIDENCE_PILOT
+            return EVIDENCE_VISION
+        if chapter_number in {"28", "29", "30", "31"}:
+            return EVIDENCE_POLICY
+        if chapter_number in {"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "25", "26", "32", "33"}:
+            return EVIDENCE_VISION
+        return EVIDENCE_VERIFIED
+
+    @staticmethod
+    def _answer_status(
+        query: str,
+        relevant: Sequence[KnowledgeSection],
+        core: Optional[KnowledgeSection],
+    ) -> str:
+        query_tokens = _tokens(query)
+        normalized_query = _normalize(query)
+        integration_aliases = TOPIC_ALIASES["entegrasyon"]
+        unknown_platforms = integration_aliases - {"entegrasyon", "pazaryeri", "trendyol"}
+        if _token_sets_overlap(query_tokens, unknown_platforms):
+            return EVIDENCE_UNKNOWN
+        if _token_sets_overlap(query_tokens, TOPIC_ALIASES["fiyat"]):
+            return EVIDENCE_UNKNOWN
+        if any(
+            phrase in normalized_query
+            for phrase in ("guven", "gizlilik", "kvkk", "cerez", "verilerim")
+        ):
+            return EVIDENCE_POLICY
+        if relevant:
+            return relevant[0].evidence_status
+        if core is not None:
+            return core.evidence_status
+        return EVIDENCE_UNKNOWN
+
+    @staticmethod
     def _format_with_budget(
         sections: Sequence[KnowledgeSection],
         max_chars: int,
@@ -282,7 +448,13 @@ class KnowledgeService:
         blocks: List[str] = []
         used = 0
         for section in sections:
-            block = f"### {section.title}\n{section.content}".strip()
+            label, guidance = EVIDENCE_GUIDANCE[section.evidence_status]
+            block = (
+                f"### {section.title}\n"
+                f"[KANIT STATÜSÜ: {label}]\n"
+                f"[ZORUNLU DİL: {guidance}]\n"
+                f"{section.content}"
+            ).strip()
             separator_size = 2 if blocks else 0
             available = max_chars - used - separator_size
             if available <= 0:

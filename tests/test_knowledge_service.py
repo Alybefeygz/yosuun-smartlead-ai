@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from app.services.knowledge_service import KnowledgeService, KnowledgeSourceError
+from app.services.knowledge_service import (
+    EVIDENCE_HISTORICAL,
+    EVIDENCE_POLICY,
+    EVIDENCE_UNKNOWN,
+    EVIDENCE_VISION,
+    KnowledgeService,
+    KnowledgeSourceError,
+)
 
 
 KNOWLEDGE_PATH = Path(__file__).resolve().parents[1] / "knowledge" / "yosuun.md"
@@ -51,6 +58,36 @@ def test_context_respects_character_budget(knowledge_service):
     )
 
     assert 0 < len(context) <= 500
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_status"),
+    [
+        ("Yosuun stok yönetimi yapıyor mu?", EVIDENCE_VISION),
+        ("Trendyol entegrasyonu var mı?", EVIDENCE_HISTORICAL),
+        ("Shopify entegrasyonu var mı?", EVIDENCE_UNKNOWN),
+        ("Hepsiburada entegrasyonu var mı?", EVIDENCE_UNKNOWN),
+        ("Paketlerin fiyatı ne kadar?", EVIDENCE_UNKNOWN),
+        ("Verilerim yüzde 100 güvende mi?", EVIDENCE_POLICY),
+    ],
+)
+def test_question_receives_binding_evidence_status(
+    knowledge_service,
+    question,
+    expected_status,
+):
+    result = knowledge_service.retrieve_result(question)
+
+    assert result.evidence_status == expected_status
+    assert "KANIT STATÜSÜ" in result.context
+
+
+def test_unknown_platform_query_prioritizes_unknown_integration_section(
+    knowledge_service,
+):
+    result = knowledge_service.retrieve_result("Hepsiburada entegrasyonu var mı?")
+
+    assert "13.3 Diğer pazar yerleri" in result.section_titles[1]
 
 
 def test_missing_source_raises_safe_domain_error(tmp_path):

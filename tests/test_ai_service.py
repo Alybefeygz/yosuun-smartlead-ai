@@ -10,6 +10,7 @@ from app.services.ai_service import (
     DEMO_MODE_RESPONSE,
     GROQ_CHAT_COMPLETIONS_URL,
 )
+from app.services.knowledge_service import EVIDENCE_VISION, RetrievalResult
 
 
 class FakeResponse:
@@ -142,6 +143,7 @@ def test_provider_success_returns_trimmed_content_and_uses_contract(monkeypatch)
         api_key="test-api-key",
         model="llama-3.1-8b-instant",
         timeout=17,
+        knowledge_service=None,
     )
 
     result = service.yanit_uret("Yosuun nedir?", [])
@@ -180,6 +182,75 @@ def test_relevant_knowledge_is_added_only_to_system_message():
     assert "YOSUUN BİLGİ BAĞLAMI" in messages[0]["content"]
     assert "Doğrulanmış stok bilgisi" in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": "Stok yönetimi var mı?"}
+
+
+def test_unsupported_live_claim_is_repaired_before_return(monkeypatch):
+    responses = iter(
+        [
+            "Yosuun stokları gerçek zamanlı izler.",
+            "Yosuun stok kontrolü yükünü azaltmayı hedefliyor.",
+        ]
+    )
+    calls = []
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["messages"])
+        return FakeResponse(
+            {"choices": [{"message": {"content": next(responses)}}]}
+        )
+
+    class VisionKnowledge:
+        def retrieve_result(self, _query, **_limits):
+            return RetrievalResult(
+                context="[KANIT STATÜSÜ: ÜRÜN VİZYONU]",
+                evidence_status=EVIDENCE_VISION,
+                section_titles=("Stok Yönetimi",),
+            )
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=VisionKnowledge(),
+    )
+
+    result = service.yanit_uret("Stok yönetimi var mı?", [])
+
+    assert result == "Yosuun stok kontrolü yükünü azaltmayı hedefliyor."
+    assert len(calls) == 2
+    assert "kanıt statüsü kurallarını ihlal etti" in calls[1][-1]["content"]
+
+
+def test_repeated_overclaim_uses_deterministic_safe_fallback(monkeypatch):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {
+                "choices": [
+                    {"message": {"content": "Yosuun rakip analizi yapabiliyor."}}
+                ]
+            }
+        ),
+    )
+
+    class VisionKnowledge:
+        def retrieve_result(self, _query, **_limits):
+            return RetrievalResult(
+                context="[KANIT STATÜSÜ: ÜRÜN VİZYONU]",
+                evidence_status=EVIDENCE_VISION,
+                section_titles=("Rakip Analizi",),
+            )
+
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=VisionKnowledge(),
+    )
+
+    result = service.yanit_uret("Rakip analizi var mı?", [])
+
+    assert "ürün vizyonunda" in result
+    assert "Güncel canlı özellik" in result
+    assert "doğrulanmamıştır" in result
 
 
 def test_timeout_is_normalized_to_ai_service_error(monkeypatch):

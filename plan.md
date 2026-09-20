@@ -56,6 +56,7 @@ Browser /dashboard -> Flask template + static assets
 │   ├── routes.py
 │   ├── services/
 │   │   ├── __init__.py
+│   │   ├── answer_guard.py
 │   │   ├── ai_service.py
 │   │   ├── knowledge_service.py
 │   │   └── rate_limiter.py
@@ -75,6 +76,7 @@ Browser /dashboard -> Flask template + static assets
 ├── tests/
 │   ├── conftest.py
 │   ├── test_auth.py
+│   ├── test_answer_guard.py
 │   ├── test_ai_service.py
 │   ├── test_config.py
 │   ├── test_database.py
@@ -237,6 +239,11 @@ pytest -q tests/test_database.py
 - [x] Temperature ve maksimum cevap token değerlerini environment ile yönet.
 - [x] Public sohbet endpoint'ine process-local hız sınırı uygula.
 - [x] FAQ konuları için deterministik retrieval kalite testleri ekle.
+- [x] Bilgi bölümlerini doğrulanmış/vizyon/tarihsel/bilinmiyor statüleriyle sınıflandır.
+- [x] Model cevabını kanıt statüsüne göre kullanıcıya dönmeden denetle.
+- [x] Hatalı cevabı bir kez yeniden yazdır; tekrarında konuya özel güvenli fallback döndür.
+- [x] Unicode tire ve pasif kesinlik kalıplarını doğruluk denetimine dahil et.
+- [x] Vizyon cevaplarında özellik anlatan her cümlede kanıt sınırı bulunmasını zorunlu kıl.
 
 ### Test kapısı
 

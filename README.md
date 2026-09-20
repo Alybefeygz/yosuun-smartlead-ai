@@ -8,6 +8,8 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 
 - Küratörlü bilgi kaynağına dayanan Türkçe Yosuun AI asistanı
 - Soruya göre ilgili bilgi bölümlerini seçen yerel retrieval katmanı
+- Mevcut özellik, ürün vizyonu, tarihsel çalışma ve bilinmeyen bilgi ayrımı
+- Model cevabını kullanıcıya dönmeden denetleyen kanıt-statüsü koruması
 - Kontrollü cevap üretimi ve sınırlı sohbet geçmişi
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
 - Lead'leri en yeniden eskiye sıralayan responsive dashboard
@@ -16,7 +18,7 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 125 otomatik test
+- 149 otomatik test
 
 ## Teknoloji yığını
 
@@ -38,7 +40,8 @@ Browser
   └── /api/*       -> Flask route katmanı
                          ├── AIService
                          │    ├── KnowledgeService -> knowledge/yosuun.md
-                         │    └── Groq
+                         │    ├── Groq
+                         │    └── AnswerGuard -> düzeltme veya güvenli fallback
                          └── database  -> SQLite
 ```
 
@@ -51,6 +54,7 @@ Başlıca dosya sorumlulukları:
 | `app/routes.py` | HTTP parse, doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
 | `app/services/ai_service.py` | Prompt oluşturma, Groq çağrısı ve demo modu |
+| `app/services/answer_guard.py` | Üretilen cevabı kanıt statüsüne göre denetleme ve güvenli fallback |
 | `app/services/knowledge_service.py` | Markdown bilgi kaynağını bölümleme ve ilgili bağlamı seçme |
 | `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
 | `knowledge/yosuun.md` | AI'nin kullandığı küratörlü Yosuun bilgi kaynağı |
@@ -236,6 +240,8 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - Frontend kullanıcı verisini `textContent` ile render eder; `innerHTML` kullanmaz.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
 - AI yalnızca soruyla ilgili küratörlü bilgi bölümlerini alır; authoring/system prompt bölümleri retrieval dışında tutulur.
+- Her bilgi bölümü `doğrulanmış`, `ürün vizyonu`, `tarihsel`, `bilinmiyor`, `atfedilmiş iddia`, `politika` veya `pilot` statüsü taşır.
+- Modelin statü sınırını aşan cevabı bir kez düzeltilir; tekrar başarısız olursa konuya özel güvenli cevap kullanılır.
 - Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 
