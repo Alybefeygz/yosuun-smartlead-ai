@@ -35,6 +35,10 @@ async function loadLeads(elements) {
     const leads = await leadleriGetir();
     renderLeads(leads, elements);
   } catch (error) {
+    if (error instanceof ApiError && error.code === "AUTH_REQUIRED") {
+      window.location.assign("/login");
+      return;
+    }
     elements.leadList.replaceChildren();
     elements.leadCount.textContent = "Liste alınamadı";
     showStatus(elements.dashboardStatus, getPublicError(error), "error");

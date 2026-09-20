@@ -21,7 +21,7 @@ def test_health_is_lightweight_and_active(client):
     assert response.get_json() == {"basari": True, "durum": "aktif"}
 
 
-@pytest.mark.parametrize("path", ["/", "/dashboard"])
+@pytest.mark.parametrize("path", ["/"])
 def test_fallback_html_pages_render(client, path):
     response = client.get(path)
 
@@ -122,8 +122,8 @@ def test_chat_maps_defensive_service_validation_to_400(client, monkeypatch):
     assert "internal validation detail" not in response.get_data(as_text=True)
 
 
-def test_valid_lead_is_created_and_returned_newest_first(client):
-    first = client.post(
+def test_valid_lead_is_created_and_returned_newest_first(authenticated_client):
+    first = authenticated_client.post(
         "/api/leads",
         json={
             "isim": "  Ayşe Yılmaz  ",
@@ -131,7 +131,7 @@ def test_valid_lead_is_created_and_returned_newest_first(client):
             "mesaj": "  İlk mesaj  ",
         },
     )
-    second = client.post(
+    second = authenticated_client.post(
         "/api/leads",
         json={
             "isim": "Mehmet",
@@ -139,7 +139,7 @@ def test_valid_lead_is_created_and_returned_newest_first(client):
             "mesaj": "",
         },
     )
-    listing = client.get("/api/leads")
+    listing = authenticated_client.get("/api/leads")
 
     assert first.status_code == 201
     assert first.get_json() == {
@@ -194,12 +194,12 @@ def test_lead_write_database_error_is_safe(client, monkeypatch):
     assert "private database path" not in response.get_data(as_text=True)
 
 
-def test_lead_read_database_error_is_safe(client, monkeypatch):
+def test_lead_read_database_error_is_safe(authenticated_client, monkeypatch):
     def database_failure():
         raise sqlite3.OperationalError("private database path")
 
     monkeypatch.setattr(routes_module, "tum_leadler", database_failure)
-    response = client.get("/api/leads")
+    response = authenticated_client.get("/api/leads")
 
     assert response.status_code == 500
     assert response.get_json()["hata"]["kod"] == "DATABASE_ERROR"

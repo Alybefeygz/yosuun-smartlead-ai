@@ -39,3 +39,27 @@ def test_production_requires_secret_key(monkeypatch):
 
     with pytest.raises(RuntimeError, match="SECRET_KEY"):
         ProductionConfig.validate()
+
+
+def test_production_requires_admin_username(monkeypatch):
+    monkeypatch.setattr(ProductionConfig, "SECRET_KEY", "production-secret")
+    monkeypatch.setattr(ProductionConfig, "ADMIN_USERNAME", None)
+    monkeypatch.setattr(ProductionConfig, "ADMIN_PASSWORD_HASH", "valid-hash")
+
+    with pytest.raises(RuntimeError, match="ADMIN_USERNAME"):
+        ProductionConfig.validate()
+
+
+def test_production_requires_admin_password_hash(monkeypatch):
+    monkeypatch.setattr(ProductionConfig, "SECRET_KEY", "production-secret")
+    monkeypatch.setattr(ProductionConfig, "ADMIN_USERNAME", "admin")
+    monkeypatch.setattr(ProductionConfig, "ADMIN_PASSWORD_HASH", None)
+
+    with pytest.raises(RuntimeError, match="ADMIN_PASSWORD_HASH"):
+        ProductionConfig.validate()
+
+
+def test_production_uses_secure_session_cookie():
+    assert ProductionConfig.SESSION_COOKIE_SECURE is True
+    assert ProductionConfig.SESSION_COOKIE_HTTPONLY is True
+    assert ProductionConfig.SESSION_COOKIE_SAMESITE == "Lax"

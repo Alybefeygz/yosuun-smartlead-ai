@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
+from app.auth import admin_api_required, admin_page_required, get_csrf_token
 from app.database import lead_ekle, tum_leadler
 from app.services.ai_service import AIServiceError, ai_service
 
@@ -141,10 +142,11 @@ def index() -> str:
 
 
 @main.get("/dashboard")
+@admin_page_required
 def dashboard() -> str:
     """Render the backend fallback dashboard page."""
 
-    return render_template("dashboard.html")
+    return render_template("dashboard.html", csrf_token=get_csrf_token())
 
 
 @main.post("/api/sohbet")
@@ -224,6 +226,7 @@ def lead_olustur() -> Tuple[Response, int]:
 
 
 @main.get("/api/leads")
+@admin_api_required
 def leadleri_listele() -> Tuple[Response, int]:
     """Return all leads newest-first."""
 

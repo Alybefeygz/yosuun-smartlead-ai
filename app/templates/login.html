@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Yosuun yönetim paneli güvenli giriş ekranı.">
+    <meta name="theme-color" content="#0b0d0c">
+    <title>Yönetici Girişi | Yosuun</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  </head>
+  <body class="site-page auth-page">
+    <a class="skip-link" href="#mainContent">Giriş formuna geç</a>
+
+    <main class="landing-page" id="mainContent">
+      <div class="landing-stage auth-stage">
+        <section class="landing-shell auth-shell" aria-labelledby="loginTitle">
+          <header class="landing-header">
+            <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
+              <span class="brand__mark" aria-hidden="true">Y</span>
+              <span class="brand__name">yosuun</span>
+            </a>
+            <p class="landing-header__status"><span aria-hidden="true"></span> Güvenli yönetici alanı</p>
+          </header>
+
+          <div class="auth-layout">
+            <section class="landing-copy auth-copy">
+              <p class="eyebrow"><span aria-hidden="true"></span> Yetkili erişimi</p>
+              <h1 class="hero-title" id="loginTitle">
+                <span class="hero-title__lead">Lead verilerinizi</span>
+                <span class="hero-title__commerce">güvenle</span>
+                <span class="hero-title__brand">Yosuun <span>yönetsin.</span></span>
+              </h1>
+              <p>İletişim taleplerini görüntülemek için yönetici hesabınızla giriş yapın.</p>
+            </section>
+
+            <article class="auth-panel" aria-labelledby="loginFormTitle">
+              <div class="chat-panel__header">
+                <span class="assistant-avatar" aria-hidden="true">Y</span>
+                <div>
+                  <h2 id="loginFormTitle">Yönetici girişi</h2>
+                  <p><span aria-hidden="true"></span> Korumalı oturum</p>
+                </div>
+              </div>
+
+              <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="field">
+                  <label for="usernameInput">Kullanıcı adı</label>
+                  <input id="usernameInput" name="username" type="text" maxlength="100" autocomplete="username" required autofocus>
+                </div>
+                <div class="field">
+                  <label for="passwordInput">Parola</label>
+                  <input id="passwordInput" name="password" type="password" maxlength="256" autocomplete="current-password" required>
+                </div>
+                <button class="button button--primary" type="submit">Güvenli giriş yap →</button>
+                {% if error %}
+                  <p class="form-status" data-state="error" role="alert">{{ error }}</p>
+                {% endif %}
+              </form>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

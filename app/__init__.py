@@ -7,6 +7,7 @@ from typing import Any, Mapping, Optional
 
 from flask import Flask, Response, g, jsonify, request
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import resolve_config
 
@@ -22,12 +23,16 @@ def create_app(
     app.config.from_object(config_class)
     if config_overrides:
         app.config.update(config_overrides)
+    if app.config["TRUST_PROXY_HEADERS"]:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Imports stay inside the composition root to keep package imports acyclic.
+    from app.auth import init_auth
     from app.database import init_db
     from app.routes import main
 
     init_db(app)
+    init_auth(app)
     app.register_blueprint(main)
 
     @app.get("/health")
@@ -55,6 +60,29 @@ def create_app(
             response.status_code,
             duration_ms,
         )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "base-uri 'self'; "
+            "connect-src 'self'; "
+            "font-src 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'; "
+            "img-src 'self' data:; "
+            "object-src 'none'; "
+            "script-src 'self'; "
+            "style-src 'self'",
+        )
+        if not app.debug:
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+        if request.path in {"/login", "/dashboard", "/api/leads"}:
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.errorhandler(HTTPException)
