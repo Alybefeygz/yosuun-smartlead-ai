@@ -18,7 +18,7 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 153 otomatik test
+- 162 otomatik test
 
 ## Teknoloji yığını
 
@@ -247,6 +247,8 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - Her bilgi bölümü `doğrulanmış`, `ürün vizyonu`, `tarihsel`, `bilinmiyor`, `atfedilmiş iddia`, `politika` veya `pilot` statüsü taşır.
 - Modelin statü sınırını aşan cevabı bir kez düzeltilir; tekrar başarısız olursa konuya özel güvenli cevap kullanılır.
 - Kullanıcıya dönen AI cevabı en fazla 250 karakterdir; yarım cümle kesmek yerine düzeltme veya güvenli fallback uygulanır.
+- Rakip/ürün fiyatı soruları abonelik fiyatlandırmasından bağlamsal olarak ayrılır.
+- Groq `429` veya boş içerik döndürürse teknik hata yerine mevcut kanıt statüsüne uygun, 250 karakter altı fallback verilir.
 - Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 

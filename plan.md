@@ -245,6 +245,8 @@ pytest -q tests/test_database.py
 - [x] Unicode tire ve pasif kesinlik kalıplarını doğruluk denetimine dahil et.
 - [x] Vizyon cevaplarında özellik anlatan her cümlede kanıt sınırı bulunmasını zorunlu kıl.
 - [x] Kullanıcıya dönen AI cevaplarını boşluk ve noktalama dâhil 250 karakterle sınırla.
+- [x] Rakip/ürün fiyatı niyetini abonelik ve paket fiyatlandırmasından ayır.
+- [x] Groq 429 ve boş cevaplarını kanıt statüsüne uygun güvenli fallback ile karşıla.
 
 ### Test kapısı
 

@@ -69,10 +69,12 @@ class AIServiceError(RuntimeError):
         *,
         provider: str = "groq",
         status_code: Optional[int] = None,
+        code: str = "provider_error",
     ) -> None:
         super().__init__(message)
         self.provider = provider
         self.status_code = status_code
+        self.code = code
 
 
 class AIService:
@@ -172,7 +174,12 @@ class AIService:
         except KnowledgeSourceError as exc:
             raise AIServiceError("AI bilgi kaynağı kullanılamıyor.") from exc
 
-        answer = self._call_provider(messages)
+        try:
+            answer = self._call_provider(messages)
+        except AIServiceError as exc:
+            if exc.status_code == 429 or exc.code == "empty_response":
+                return self._safe_bounded_fallback(evidence_status, mesaj)
+            raise
         violations = answer_violations(answer, evidence_status)
         if not violations:
             return answer
@@ -386,6 +393,7 @@ class AIService:
                 "AI sağlayıcısı boş cevap döndürdü.",
                 provider=self.provider,
                 status_code=response.status_code,
+                code="empty_response",
             )
         return content.strip()
 

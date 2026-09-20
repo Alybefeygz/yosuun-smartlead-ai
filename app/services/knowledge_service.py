@@ -103,10 +103,28 @@ TOPIC_ALIASES: Dict[str, Set[str]] = {
     "iletisim": {"adres", "demo", "eposta", "iletisim", "mail", "telefon"},
     "guvenlik": {"cerez", "guvenli", "guvenlik", "gizlilik", "kvkk", "veri"},
     "hedef": {"ajans", "hedef", "kimler", "kobi", "kullanici", "marka", "satici"},
-    "rakip": {"analiz", "karsilastirma", "rakip", "takip"},
+    "rakip": {"analiz", "karsilastirma", "rakib", "rakip", "takip"},
     "stok": {"envanter", "senkronizasyon", "stok", "uyari"},
     "teknoloji": {"altyapi", "backend", "flask", "groq", "mimari", "model", "teknoloji"},
 }
+
+SUBSCRIPTION_PRICE_TERMS = frozenset(
+    {"abonelik", "aylik", "lisans", "paket", "tarife", "ucret"}
+)
+COMMERCE_PRICE_CONTEXT_TERMS = frozenset(
+    {
+        "degisim",
+        "degisiklik",
+        "dusur",
+        "kampanya",
+        "magaza",
+        "pazaryeri",
+        "rakip",
+        "satis",
+        "urun",
+        "yukselt",
+    }
+)
 
 
 class KnowledgeSourceError(RuntimeError):
@@ -183,6 +201,33 @@ def _expanded_query_tokens(query: str) -> Set[str]:
             continue
         expanded.add(topic)
     return expanded
+
+
+def _is_subscription_pricing_query(query: str) -> bool:
+    """Separate Yosuun pricing from product or competitor price operations."""
+
+    normalized_query = _normalize(query)
+    query_tokens = _tokens(query)
+    if _token_sets_overlap(query_tokens, SUBSCRIPTION_PRICE_TERMS):
+        return True
+
+    has_price_word = any(token.startswith("fiyat") for token in query_tokens)
+    if not has_price_word:
+        return False
+    if _token_sets_overlap(query_tokens, COMMERCE_PRICE_CONTEXT_TERMS):
+        return False
+
+    return any(
+        phrase in normalized_query
+        for phrase in (
+            "fiyati ne",
+            "fiyat ne",
+            "fiyatiniz",
+            "fiyatlandirma",
+            "ne kadar",
+            "yosuun fiyati",
+        )
+    )
 
 
 class KnowledgeService:
@@ -337,14 +382,15 @@ class KnowledgeService:
                 and token in content_tokens
             ):
                 score += 30
+        if "rakip" in query_tokens and "8 3 rakip takibi" in section.normalized_title:
+            score += 24
         if len(normalized_query) >= 5 and normalized_query in section.normalized_content:
             score += 12
-        price_intent = any(
-            phrase in normalized_query
-            for phrase in ("fiyati ne", "fiyat ne", "fiyatlandirma", "paket", "ucret")
-        )
+        price_intent = _is_subscription_pricing_query(normalized_query)
         if price_intent and section.chapter.startswith("14."):
             score += 30
+        elif not price_intent and section.chapter.startswith("14."):
+            score -= 30
         security_intent = any(
             phrase in normalized_query
             for phrase in ("guven", "gizlilik", "kvkk", "cerez", "verilerim")
@@ -427,7 +473,7 @@ class KnowledgeService:
         unknown_platforms = integration_aliases - {"entegrasyon", "pazaryeri", "trendyol"}
         if _token_sets_overlap(query_tokens, unknown_platforms):
             return EVIDENCE_UNKNOWN
-        if _token_sets_overlap(query_tokens, TOPIC_ALIASES["fiyat"]):
+        if _is_subscription_pricing_query(query):
             return EVIDENCE_UNKNOWN
         if any(
             phrase in normalized_query

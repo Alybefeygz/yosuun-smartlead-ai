@@ -257,7 +257,7 @@ def safe_fallback(evidence_status: str, query: str = "") -> str:
                 "hedefleri yer alır. Bunların güncel canlı kapsamı ve desteklenen "
                 "entegrasyonları ayrıca doğrulanmalıdır."
             )
-        if "rakip" in normalized_query:
+        if "rakip" in normalized_query or "rakib" in normalized_query:
             return (
                 "Yosuun'un ürün vizyonunda rakip verilerini takip etme, karşılaştırma "
                 "ve karar desteğine dönüştürme hedefi yer alır. Güncel canlı özellik "

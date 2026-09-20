@@ -313,7 +313,7 @@ def test_timeout_is_normalized_to_ai_service_error(monkeypatch):
         service.yanit_uret("Merhaba", [])
 
 
-def test_http_error_is_normalized_without_provider_body(monkeypatch):
+def test_http_rate_limit_returns_bounded_safe_fallback(monkeypatch):
     monkeypatch.setattr(
         ai_service_module.requests,
         "post",
@@ -322,12 +322,55 @@ def test_http_error_is_normalized_without_provider_body(monkeypatch):
             status_code=429,
         ),
     )
-    service = AIService(api_key="test-api-key")
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert "doğrulanmış bilgi" in result
+    assert len(result) <= MAX_ANSWER_CHARS
+
+
+def test_http_rate_limit_preserves_retrieved_topic_in_fallback(monkeypatch):
+    class VisionKnowledge:
+        def retrieve_result(self, _query, **_limits):
+            return RetrievalResult(
+                context="[KANIT STATÜSÜ: ÜRÜN VİZYONU]",
+                evidence_status=EVIDENCE_VISION,
+                section_titles=("Rakip Analizi",),
+            )
+
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse({}, status_code=429),
+    )
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=VisionKnowledge(),
+    )
+
+    result = service.yanit_uret("Rakibim fiyatı düşürürse ne olur?", [])
+
+    assert "rakip verilerini" in result
+    assert "ürün vizyonunda" in result
+    assert len(result) <= MAX_ANSWER_CHARS
+
+
+def test_other_http_error_is_normalized_without_provider_body(monkeypatch):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {"private": "provider-secret-body"},
+            status_code=500,
+        ),
+    )
+    service = AIService(api_key="test-api-key", knowledge_service=None)
 
     with pytest.raises(AIServiceError) as error_info:
-        service.yanit_uret("Merhaba", [])
+        service.yanit_uret("Yosuun nedir?", [])
 
-    assert error_info.value.status_code == 429
+    assert error_info.value.status_code == 500
     assert "provider-secret-body" not in str(error_info.value)
 
 
@@ -349,7 +392,6 @@ def test_invalid_provider_json_is_normalized(monkeypatch):
         {},
         {"choices": []},
         {"choices": [{}]},
-        {"choices": [{"message": {"content": ""}}]},
     ],
 )
 def test_malformed_or_empty_provider_response_is_normalized(monkeypatch, payload):
@@ -362,6 +404,26 @@ def test_malformed_or_empty_provider_response_is_normalized(monkeypatch, payload
 
     with pytest.raises(AIServiceError):
         service.yanit_uret("Merhaba", [])
+
+
+@pytest.mark.parametrize("empty_content", ["", "   "])
+def test_empty_provider_content_returns_bounded_safe_fallback(
+    monkeypatch,
+    empty_content,
+):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {"choices": [{"message": {"content": empty_content}}]}
+        ),
+    )
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert "doğrulanmış bilgi" in result
+    assert len(result) <= MAX_ANSWER_CHARS
 
 
 def test_unsupported_provider_is_rejected_without_network_call(monkeypatch):
