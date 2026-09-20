@@ -24,3 +24,6 @@ instance/
 .DS_Store
 .vscode/
 .idea/
+
+# Local high-resolution source artwork
+/logo.png

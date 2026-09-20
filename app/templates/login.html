@@ -6,7 +6,7 @@
     <meta name="description" content="Yosuun yönetim paneli güvenli giriş ekranı.">
     <meta name="theme-color" content="#0b0d0c">
     <title>Yönetici Girişi | Yosuun</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='images/logo.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   </head>
   <body class="site-page auth-page">
@@ -17,10 +17,10 @@
         <section class="landing-shell auth-shell" aria-labelledby="loginTitle">
           <header class="landing-header">
             <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
-              <span class="brand__mark" aria-hidden="true">Y</span>
+              <img class="brand__mark" id="brandLogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="" width="45" height="45">
               <span class="brand__name">yosuun</span>
             </a>
-            <p class="landing-header__status"><span aria-hidden="true"></span> Güvenli yönetici alanı</p>
+            <a class="button button--ghost auth-back-link" id="homeBackLink" href="{{ url_for('main.index') }}">← Ana sayfaya dön</a>
           </header>
 
           <div class="auth-layout">
@@ -36,7 +36,7 @@
 
             <article class="auth-panel" aria-labelledby="loginFormTitle">
               <div class="chat-panel__header">
-                <span class="assistant-avatar" aria-hidden="true">Y</span>
+                <img class="assistant-avatar" id="assistantLogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="" width="51" height="51">
                 <div>
                   <h2 id="loginFormTitle">Yönetici girişi</h2>
                   <p><span aria-hidden="true"></span> Korumalı oturum</p>

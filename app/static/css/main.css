@@ -102,16 +102,21 @@ button {
   letter-spacing: -0.05em;
 }
 
+.landing-header .brand {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+}
+
 .brand__mark {
-  display: grid;
-  width: 2.2rem;
-  height: 2.2rem;
-  place-items: center;
-  border-radius: 9px 9px 9px 2px;
-  color: var(--ink);
-  background: var(--brand);
-  font-size: 1rem;
-  font-weight: 950;
+  display: block;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
 }
 
 .button {
@@ -255,6 +260,12 @@ button {
   box-shadow: 0 0 0 4px rgba(120, 246, 102, 0.12);
 }
 
+.landing-header__login {
+  min-height: 2.55rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.78rem;
+}
+
 .landing-slider {
   min-width: 0;
   min-height: 0;
@@ -371,15 +382,11 @@ button {
 }
 
 .assistant-avatar {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
+  display: block;
+  width: 3.2rem;
+  height: 3.2rem;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 12px 12px 12px 4px;
-  color: var(--ink);
-  background: var(--brand);
-  font-weight: 950;
+  object-fit: contain;
 }
 
 .chat-panel__header h2 {
@@ -401,6 +408,11 @@ button {
   height: 0.38rem;
   border-radius: 50%;
   background: var(--brand);
+}
+
+.chat-panel__header .chat-panel__status {
+  margin: 0 0 0 auto;
+  white-space: nowrap;
 }
 
 .chat-panel__messages {
@@ -699,10 +711,17 @@ textarea:focus {
 
 .auth-stage {
   grid-template-rows: minmax(0, 1fr);
+  padding-bottom: 3.75rem;
 }
 
 .auth-shell {
   height: 100%;
+}
+
+.auth-back-link {
+  min-height: 2.55rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.76rem;
 }
 
 .auth-layout {
@@ -989,6 +1008,10 @@ textarea:focus {
     gap: 0.5rem;
   }
 
+  .auth-stage {
+    padding-bottom: 3.5rem;
+  }
+
   .landing-shell {
     border-radius: 1.5rem;
   }
@@ -997,8 +1020,24 @@ textarea:focus {
     min-height: 4.5rem;
   }
 
+  .landing-header__login {
+    min-height: 2.35rem;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.72rem;
+  }
+
+  .chat-panel__header .chat-panel__status {
+    font-size: 0.62rem;
+  }
+
   .auth-layout {
     padding: 1.25rem;
+  }
+
+  .auth-back-link {
+    min-height: 2.35rem;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.72rem;
   }
 
   .auth-copy .hero-title__commerce,
