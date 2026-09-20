@@ -1,0 +1,41 @@
+"""Tests for environment selection and safe configuration defaults."""
+
+import pytest
+
+from app import create_app
+from config import (
+    ProductionConfig,
+    _parse_positive_int,
+    resolve_config,
+)
+
+
+def test_development_app_uses_expected_safe_defaults(tmp_path):
+    app = create_app(
+        "development",
+        {"DATABASE_URL": str(tmp_path / "config-test.sqlite3")},
+    )
+
+    assert app.config["DEBUG"] is True
+    assert app.config["AI_PROVIDER"] == "groq"
+    assert app.config["GROQ_MODEL"] == "openai/gpt-oss-20b"
+    assert app.config["AI_HISTORY_MAX_MESSAGES"] == 20
+    assert app.config["AI_HISTORY_MAX_CHARS"] == 8000
+    assert app.config["MAX_CONTENT_LENGTH"] == 65536
+
+
+@pytest.mark.parametrize("raw_value", ["", "0", "-1", "invalid"])
+def test_invalid_timeout_uses_safe_default(raw_value):
+    assert _parse_positive_int(raw_value, default=20) == 20
+
+
+def test_unknown_environment_is_rejected():
+    with pytest.raises(ValueError, match="Bilinmeyen ortam"):
+        resolve_config("staging")
+
+
+def test_production_requires_secret_key(monkeypatch):
+    monkeypatch.setattr(ProductionConfig, "SECRET_KEY", None)
+
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        ProductionConfig.validate()
