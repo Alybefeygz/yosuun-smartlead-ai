@@ -102,12 +102,21 @@ button {
   letter-spacing: -0.05em;
 }
 
+.landing-header .brand {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+}
+
 .brand__mark {
   display: block;
   width: 2.8rem;
   height: 2.8rem;
   flex: 0 0 auto;
   object-fit: contain;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
 }
 
 .button {
