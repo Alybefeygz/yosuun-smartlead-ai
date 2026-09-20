@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Yosuun iletişim talepleri yönetim paneli.">
+    <meta name="theme-color" content="#0b0d0c">
+    <title>Yönetim Paneli | Yosuun</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script type="module" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  </head>
+  <body class="dashboard-page">
+    <a class="skip-link" href="#mainContent">Ana içeriğe geç</a>
+
+    <header class="dashboard-header">
+      <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
+        <span class="brand__mark" aria-hidden="true">Y</span>
+        <span class="brand__name">yosuun</span>
+      </a>
+      <span>Yönetim Paneli</span>
+    </header>
+
+    <main class="dashboard-main" id="mainContent">
+      <section class="dashboard-title" aria-labelledby="dashboardTitle">
+        <div>
+          <p class="eyebrow eyebrow--dark">Lead listesi</p>
+          <h1 id="dashboardTitle">İletişim talepleri</h1>
+          <p>Web sitesinden gelen kayıtlar en yeniden eskiye listelenir.</p>
+        </div>
+        <button class="button button--primary" id="refreshButton" type="button">
+          <span aria-hidden="true">↻</span> Yenile
+        </button>
+      </section>
+
+      <section class="dashboard-card" aria-labelledby="leadListTitle">
+        <div class="dashboard-card__header">
+          <h2 id="leadListTitle">Kayıtlar</h2>
+          <p id="leadCount">Kayıtlar yükleniyor</p>
+        </div>
+
+        <p class="dashboard-status" id="dashboardStatus" role="status" aria-live="polite">Lead'ler yükleniyor...</p>
+
+        <div class="lead-table-header" aria-hidden="true">
+          <span>İsim ve telefon</span>
+          <span>Mesaj</span>
+          <span>Tarih</span>
+        </div>
+        <div class="lead-list" id="leadList" aria-busy="true"></div>
+
+        <template id="leadRowTemplate">
+          <article class="lead-row">
+            <div class="lead-row__identity">
+              <span class="lead-row__avatar" data-field="initial" aria-hidden="true"></span>
+              <div>
+                <h3 data-field="name"></h3>
+                <a data-field="phone" href="#"></a>
+              </div>
+            </div>
+            <p class="lead-row__message" data-field="message"></p>
+            <time class="lead-row__date" data-field="date"></time>
+          </article>
+        </template>
+      </section>
+    </main>
+  </body>
+</html>
