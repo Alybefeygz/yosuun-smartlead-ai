@@ -20,7 +20,10 @@
               <span class="brand__mark" aria-hidden="true">Y</span>
               <span class="brand__name">yosuun</span>
             </a>
-            <p class="landing-header__status"><span aria-hidden="true"></span> Güvenli yönetici alanı</p>
+            <div class="auth-header__actions">
+              <p class="landing-header__status"><span aria-hidden="true"></span> Güvenli yönetici alanı</p>
+              <a class="button button--ghost auth-back-link" id="homeBackLink" href="{{ url_for('main.index') }}">← Ana sayfaya dön</a>
+            </div>
           </header>
 
           <div class="auth-layout">

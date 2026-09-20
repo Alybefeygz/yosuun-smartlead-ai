@@ -118,11 +118,19 @@ def test_login_template_matches_accessible_ui_contract(client):
     inspector = inspect(response)
 
     assert response.status_code == 200
-    assert {"mainContent", "loginTitle", "usernameInput", "passwordInput"} <= (
+    assert {
+        "mainContent",
+        "loginTitle",
+        "usernameInput",
+        "passwordInput",
+        "homeBackLink",
+    } <= (
         inspector.ids
     )
     assert {"usernameInput", "passwordInput"} <= inspector.labels_for
     assert inspector.attributes_by_id["passwordInput"]["type"] == "password"
+    assert inspector.tags_by_id["homeBackLink"] == "a"
+    assert inspector.attributes_by_id["homeBackLink"]["href"] == "/"
     assert inspector.inline_styles == []
     assert inspector.scripts == []
 
