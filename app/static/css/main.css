@@ -716,12 +716,6 @@ textarea:focus {
   height: 100%;
 }
 
-.auth-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
 .auth-back-link {
   min-height: 2.55rem;
   padding: 0.65rem 1rem;
@@ -971,10 +965,6 @@ textarea:focus {
   }
 
   .dashboard-header__actions .landing-header__status {
-    display: none;
-  }
-
-  .auth-header__actions .landing-header__status {
     display: none;
   }
 
