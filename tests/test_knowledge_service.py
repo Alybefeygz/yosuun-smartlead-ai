@@ -134,6 +134,35 @@ def test_unknown_platform_query_prioritizes_unknown_integration_section(
     assert "13.3 Diğer pazar yerleri" in result.section_titles[1]
 
 
+@pytest.mark.parametrize(
+    ("question", "expected_confidence"),
+    [
+        ("Rakip analizi yapıyor mu?", "high"),
+        ("Yosuun nedir?", "medium"),
+        ("Kuantum muhasebesi desteği var mı?", "low"),
+    ],
+)
+def test_retrieval_result_exposes_deterministic_confidence(
+    knowledge_service,
+    question,
+    expected_confidence,
+):
+    result = knowledge_service.retrieve_result(question)
+
+    assert result.confidence == expected_confidence
+    assert result.retrieval_score >= 0
+    assert result.intent
+
+
+def test_low_confidence_product_claim_uses_unknown_evidence_boundary(
+    knowledge_service,
+):
+    result = knowledge_service.retrieve_result("Kuantum muhasebesi desteği var mı?")
+
+    assert result.confidence == "low"
+    assert result.evidence_status == EVIDENCE_UNKNOWN
+
+
 def test_missing_source_raises_safe_domain_error(tmp_path):
     service = KnowledgeService(tmp_path / "missing.md")
 

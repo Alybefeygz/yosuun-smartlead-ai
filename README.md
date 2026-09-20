@@ -8,6 +8,7 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 
 - Küratörlü bilgi kaynağına dayanan Türkçe Yosuun AI asistanı
 - Soruya göre ilgili bilgi bölümlerini seçen yerel retrieval katmanı
+- Ayrı niyet sınıflandırıcısı ve düşük/orta/yüksek retrieval güven skoru
 - Mevcut özellik, ürün vizyonu, tarihsel çalışma ve bilinmeyen bilgi ayrımı
 - Model cevabını kullanıcıya dönmeden denetleyen kanıt-statüsü koruması
 - Kontrollü cevap üretimi ve sınırlı sohbet geçmişi
@@ -18,7 +19,9 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 162 otomatik test
+- Hazır FAQ cevabı kullanmadan her normal soruda AI üretimi
+- 100 soruluk dengeli AI yönlendirme değerlendirme seti
+- 189 otomatik test
 
 ## Teknoloji yığını
 
@@ -39,6 +42,7 @@ Browser
   ├── /dashboard   -> Korumalı B2B lead listesi
   └── /api/*       -> Flask route katmanı
                          ├── AIService
+                         │    ├── IntentClassifier -> niyet ve CTA kararı
                          │    ├── KnowledgeService -> knowledge/yosuun.md
                          │    ├── Groq
                          │    └── AnswerGuard -> düzeltme veya güvenli fallback
@@ -54,6 +58,7 @@ Başlıca dosya sorumlulukları:
 | `app/routes.py` | HTTP parse, doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
 | `app/services/ai_service.py` | Prompt oluşturma, Groq çağrısı ve demo modu |
+| `app/services/intent_classifier.py` | Soru niyeti, fiyat bağlamı ve CTA izni |
 | `app/services/answer_guard.py` | Üretilen cevabı kanıt statüsüne göre denetleme ve güvenli fallback |
 | `app/services/knowledge_service.py` | Markdown bilgi kaynağını bölümleme ve ilgili bağlamı seçme |
 | `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
@@ -248,7 +253,11 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - Modelin statü sınırını aşan cevabı bir kez düzeltilir; tekrar başarısız olursa konuya özel güvenli cevap kullanılır.
 - Kullanıcıya dönen AI cevabı en fazla 250 karakterdir; yarım cümle kesmek yerine düzeltme veya güvenli fallback uygulanır.
 - Rakip/ürün fiyatı soruları abonelik fiyatlandırmasından bağlamsal olarak ayrılır.
-- Groq `429` veya boş içerik döndürürse teknik hata yerine mevcut kanıt statüsüne uygun, 250 karakter altı fallback verilir.
+- Retrieval sonucu skorlanır ve modele `low`, `medium` veya `high` güven sözleşmesi verilir.
+- FAQ eşleşmeleri hazır cevap döndürmez; bilgi bağlamı seçildikten sonra nihai cevabı her zaman AI üretir.
+- CTA yalnız demo/iletişim, entegrasyon ve abonelik fiyatlandırması niyetlerinde kullanılabilir.
+- Groq `429`, `5xx`, timeout, ağ hatası, boş veya kesilmiş içerik döndürürse teknik hata yerine mevcut kanıt statüsüne uygun, 250 karakter altı fallback verilir.
+- `tests/fixtures/ai_evaluation_cases.json` içindeki 100 soru niyet, kanıt statüsü, retrieval bölümü ve CTA kararını doğrular.
 - Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 
@@ -270,7 +279,7 @@ verisi veya yayınlanması istenmeyen kişisel veri içermemelidir.
 Her değişiklikten sonra kalite ve retrieval testlerini çalıştırın:
 
 ```bash
-python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
+python -m pytest -q tests/test_intent_classifier.py tests/test_knowledge_service.py tests/test_ai_evaluation.py tests/test_ai_service.py
 ```
 
 ## Bağlantılar

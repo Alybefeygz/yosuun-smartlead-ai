@@ -8,6 +8,20 @@ import re
 import unicodedata
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+from app.services.intent_classifier import (
+    INTENT_COMPANY_INFORMATION,
+    INTENT_COMPETITOR_TRACKING,
+    INTENT_DEMO_CONTACT,
+    INTENT_GREETING,
+    INTENT_OUT_OF_SCOPE,
+    INTENT_PROMPT_INJECTION,
+    INTENT_PRODUCT_CAPABILITY,
+    INTENT_SECURITY_PRIVACY,
+    INTENT_SUBSCRIPTION_PRICING,
+    IntentClassifier,
+    intent_classifier,
+)
+
 
 HEADING_PATTERN = re.compile(r"^(#{1,2})\s+(.+?)\s*$")
 TOP_LEVEL_NUMBER_PATTERN = re.compile(r"^(\d+)\.")
@@ -108,25 +122,6 @@ TOPIC_ALIASES: Dict[str, Set[str]] = {
     "teknoloji": {"altyapi", "backend", "flask", "groq", "mimari", "model", "teknoloji"},
 }
 
-SUBSCRIPTION_PRICE_TERMS = frozenset(
-    {"abonelik", "aylik", "lisans", "paket", "tarife", "ucret"}
-)
-COMMERCE_PRICE_CONTEXT_TERMS = frozenset(
-    {
-        "degisim",
-        "degisiklik",
-        "dusur",
-        "kampanya",
-        "magaza",
-        "pazaryeri",
-        "rakip",
-        "satis",
-        "urun",
-        "yukselt",
-    }
-)
-
-
 class KnowledgeSourceError(RuntimeError):
     """Raised when the curated knowledge source cannot be loaded safely."""
 
@@ -151,6 +146,9 @@ class RetrievalResult:
     context: str
     evidence_status: str
     section_titles: Tuple[str, ...]
+    intent: str = "general"
+    retrieval_score: int = 0
+    confidence: str = "low"
 
 
 def _normalize(value: str) -> str:
@@ -203,38 +201,16 @@ def _expanded_query_tokens(query: str) -> Set[str]:
     return expanded
 
 
-def _is_subscription_pricing_query(query: str) -> bool:
-    """Separate Yosuun pricing from product or competitor price operations."""
-
-    normalized_query = _normalize(query)
-    query_tokens = _tokens(query)
-    if _token_sets_overlap(query_tokens, SUBSCRIPTION_PRICE_TERMS):
-        return True
-
-    has_price_word = any(token.startswith("fiyat") for token in query_tokens)
-    if not has_price_word:
-        return False
-    if _token_sets_overlap(query_tokens, COMMERCE_PRICE_CONTEXT_TERMS):
-        return False
-
-    return any(
-        phrase in normalized_query
-        for phrase in (
-            "fiyati ne",
-            "fiyat ne",
-            "fiyatiniz",
-            "fiyatlandirma",
-            "ne kadar",
-            "yosuun fiyati",
-        )
-    )
-
-
 class KnowledgeService:
     """Parse, rank and format relevant parts of the Yosuun knowledge source."""
 
-    def __init__(self, source_path: Path) -> None:
+    def __init__(
+        self,
+        source_path: Path,
+        classifier: Optional[IntentClassifier] = None,
+    ) -> None:
         self.source_path = Path(source_path)
+        self.intent_classifier = classifier or intent_classifier
         self._sections: Optional[List[KnowledgeSection]] = None
 
     @property
@@ -276,9 +252,18 @@ class KnowledgeService:
 
         query_tokens = _expanded_query_tokens(query)
         normalized_query = _normalize(query)
+        intent_result = self.intent_classifier.classify(query)
         ranked = sorted(
             (
-                (self._score(section, query_tokens, normalized_query), section)
+                (
+                    self._score(
+                        section,
+                        query_tokens,
+                        normalized_query,
+                        intent_result.name,
+                    ),
+                    section,
+                )
                 for section in self.sections
             ),
             key=lambda item: (-item[0], item[1].order),
@@ -286,6 +271,7 @@ class KnowledgeService:
 
         selected: List[KnowledgeSection] = []
         relevant: List[KnowledgeSection] = []
+        relevant_scores: List[int] = []
         core = self._core_section()
         if core is not None:
             selected.append(core)
@@ -295,14 +281,29 @@ class KnowledgeService:
                 continue
             selected.append(section)
             relevant.append(section)
+            relevant_scores.append(score)
             if len(selected) >= max_sections:
                 break
 
-        evidence_status = self._answer_status(query, relevant, core)
+        retrieval_score = relevant_scores[0] if relevant_scores else 0
+        confidence = self._retrieval_confidence(
+            intent_result.name,
+            retrieval_score,
+        )
+        evidence_status = self._answer_status(
+            query,
+            relevant,
+            core,
+            intent_result.name,
+            confidence,
+        )
         return RetrievalResult(
             context=self._format_with_budget(selected, max_chars),
             evidence_status=evidence_status,
             section_titles=tuple(section.title for section in selected),
+            intent=intent_result.name,
+            retrieval_score=retrieval_score,
+            confidence=confidence,
         )
 
     def _load_sections(self) -> List[KnowledgeSection]:
@@ -367,6 +368,7 @@ class KnowledgeService:
         section: KnowledgeSection,
         query_tokens: Iterable[str],
         normalized_query: str,
+        intent: str,
     ) -> int:
         title_tokens = set(section.normalized_title.split())
         content_tokens = set(section.normalized_content.split())
@@ -382,22 +384,72 @@ class KnowledgeService:
                 and token in content_tokens
             ):
                 score += 30
-        if "rakip" in query_tokens and "8 3 rakip takibi" in section.normalized_title:
+        if (
+            intent == INTENT_COMPETITOR_TRACKING
+            and "8 3 rakip takibi" in section.normalized_title
+        ):
             score += 24
+        if intent == INTENT_PRODUCT_CAPABILITY:
+            capability_headings = {
+                "stok": "8 2 stok yonetimi",
+                "siparis": "8 6 siparis akisi",
+                "kampanya": "8 7 kampanya yonetimi",
+                "performans": "8 8 performans takibi",
+                "planlama": "8 9 planlama",
+                "icerik": "8 10 icerik surecleri",
+                "rapor": "8 11 raporlama",
+                "merkezi": "8 1 merkezi e ticaret yonetimi",
+                "urun yonet": "8 4 urun yonetimi",
+            }
+            for query_term, heading in capability_headings.items():
+                if query_term in normalized_query and heading in section.normalized_title:
+                    score += 24
+        if intent == INTENT_DEMO_CONTACT:
+            if "demo" in normalized_query and (
+                "demo alabilir" in section.normalized_title
+                or section.chapter.startswith("15.")
+            ):
+                score += 30
+            elif "demo" not in normalized_query and section.chapter.startswith("19."):
+                score += 30
+        if intent == INTENT_COMPANY_INFORMATION:
+            company_targets = {
+                "kurucu": "19.",
+                "kim kurdu": "19.",
+                "isim": "4.",
+                "adi nereden": "4.",
+                "logo": "24.",
+                "sembol": "24.",
+                "marka kimligi": "23.",
+                "marka kisiligi": "23.",
+                "marka mesaji": "5.",
+            }
+            for query_term, chapter_prefix in company_targets.items():
+                if query_term in normalized_query and section.chapter.startswith(chapter_prefix):
+                    score += 30
         if len(normalized_query) >= 5 and normalized_query in section.normalized_content:
             score += 12
-        price_intent = _is_subscription_pricing_query(normalized_query)
+        price_intent = intent == INTENT_SUBSCRIPTION_PRICING
         if price_intent and section.chapter.startswith("14."):
             score += 30
         elif not price_intent and section.chapter.startswith("14."):
             score -= 30
-        security_intent = any(
-            phrase in normalized_query
-            for phrase in ("guven", "gizlilik", "kvkk", "cerez", "verilerim")
-        )
+        security_intent = intent == INTENT_SECURITY_PRIVACY
         if security_intent and section.chapter.startswith("20."):
             score += 24
         return score
+
+    @staticmethod
+    def _retrieval_confidence(intent: str, top_score: int) -> str:
+        """Convert deterministic ranking strength into a prompt contract."""
+
+        if intent in {INTENT_OUT_OF_SCOPE, INTENT_PROMPT_INJECTION}:
+            return "low"
+        if top_score >= 24:
+            return "high"
+        if top_score >= 8:
+            return "medium"
+        return "low"
 
     @staticmethod
     def _has_related_token(token: str, candidates: Set[str]) -> bool:
@@ -457,7 +509,9 @@ class KnowledgeService:
             return EVIDENCE_VISION
         if chapter_number in {"28", "29", "30", "31"}:
             return EVIDENCE_POLICY
-        if chapter_number in {"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "25", "26", "32", "33"}:
+        if chapter_number in {"4", "5"}:
+            return EVIDENCE_VERIFIED
+        if chapter_number in {"2", "3", "6", "7", "8", "9", "10", "11", "12", "25", "26", "32", "33"}:
             return EVIDENCE_VISION
         return EVIDENCE_VERIFIED
 
@@ -466,6 +520,8 @@ class KnowledgeService:
         query: str,
         relevant: Sequence[KnowledgeSection],
         core: Optional[KnowledgeSection],
+        intent: str,
+        confidence: str,
     ) -> str:
         query_tokens = _tokens(query)
         normalized_query = _normalize(query)
@@ -473,13 +529,20 @@ class KnowledgeService:
         unknown_platforms = integration_aliases - {"entegrasyon", "pazaryeri", "trendyol"}
         if _token_sets_overlap(query_tokens, unknown_platforms):
             return EVIDENCE_UNKNOWN
-        if _is_subscription_pricing_query(query):
+        if intent == INTENT_SUBSCRIPTION_PRICING:
             return EVIDENCE_UNKNOWN
-        if any(
-            phrase in normalized_query
-            for phrase in ("guven", "gizlilik", "kvkk", "cerez", "verilerim")
-        ):
+        if intent == INTENT_SECURITY_PRIVACY:
             return EVIDENCE_POLICY
+        if intent == INTENT_DEMO_CONTACT:
+            return EVIDENCE_PILOT if "demo" in normalized_query else EVIDENCE_VERIFIED
+        if intent == INTENT_COMPANY_INFORMATION and relevant:
+            return relevant[0].evidence_status
+        if intent in {INTENT_OUT_OF_SCOPE, INTENT_PROMPT_INJECTION}:
+            return EVIDENCE_UNKNOWN
+        if intent == INTENT_GREETING:
+            return EVIDENCE_VERIFIED
+        if confidence == "low":
+            return EVIDENCE_UNKNOWN
         if relevant:
             return relevant[0].evidence_status
         if core is not None:

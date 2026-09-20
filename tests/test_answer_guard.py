@@ -8,10 +8,15 @@ from app.services.answer_guard import (
     answer_violations,
     safe_fallback,
 )
+from app.services.intent_classifier import (
+    INTENT_DEMO_CONTACT,
+    INTENT_PRODUCT_CAPABILITY,
+)
 from app.services.knowledge_service import (
     EVIDENCE_HISTORICAL,
     EVIDENCE_POLICY,
     EVIDENCE_UNKNOWN,
+    EVIDENCE_VERIFIED,
     EVIDENCE_VISION,
 )
 
@@ -93,6 +98,31 @@ def test_answer_over_character_limit_is_rejected_even_when_it_is_a_refusal():
     answer = "Bu isteği yerine getiremiyorum. " + ("x" * MAX_ANSWER_CHARS)
 
     assert "answer_too_long" in answer_violations(answer, EVIDENCE_VISION)
+
+
+def test_cta_is_rejected_when_intent_does_not_allow_it():
+    answer = (
+        "Yosuun stok kontrolünü azaltmayı hedefliyor. "
+        "Demo için iletişim formunu doldurun."
+    )
+
+    violations = answer_violations(
+        answer,
+        EVIDENCE_VISION,
+        INTENT_PRODUCT_CAPABILITY,
+    )
+
+    assert "cta_not_allowed_for_intent" in violations
+
+
+def test_cta_is_allowed_for_demo_intent():
+    answer = "Demo talebi için iletişim formunu doldurabilirsiniz."
+
+    assert answer_violations(
+        answer,
+        EVIDENCE_VERIFIED,
+        INTENT_DEMO_CONTACT,
+    ) == []
 
 
 def test_fallback_is_deterministic_and_matches_evidence_boundary():

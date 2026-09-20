@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
+from app.services.intent_classifier import CTA_ALLOWED_INTENTS
 from app.services.knowledge_service import (
     EVIDENCE_ATTRIBUTED,
     EVIDENCE_HISTORICAL,
@@ -123,11 +124,20 @@ ABSOLUTE_SECURITY_CLAIMS = (
     "guvenli sekilde saklanir",
 )
 
+CTA_PHRASES = (
+    "bizimle iletisime",
+    "demo talep",
+    "demo icin",
+    "iletisim form",
+    "formu doldur",
+    "randevu al",
+    "yosuun ekibiyle iletisim",
+)
+
 FALLBACKS: Dict[str, str] = {
     EVIDENCE_UNKNOWN: (
         "Bu konuda doğrulanmış güncel bilgi kaynağımda bulunmuyor. Geliştirme, "
-        "pilot veya canlı kullanım durumu hakkında varsayım yapamam. En güncel "
-        "bilgi için Yosuun ekibinden doğrulama alınması gerekir."
+        "pilot veya canlı kullanım durumu hakkında varsayım yapamam."
     ),
     EVIDENCE_HISTORICAL: (
         "Bu konuda geçmişte çalışma yapıldığı belirtiliyor; ancak güncel canlı "
@@ -166,13 +176,23 @@ def _normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", without_marks).strip()
 
 
-def answer_violations(answer: str, evidence_status: str) -> List[str]:
+def answer_violations(
+    answer: str,
+    evidence_status: str,
+    intent: Optional[str] = None,
+) -> List[str]:
     """Return machine-readable reasons an answer exceeds its evidence status."""
 
     normalized = _normalize(answer)
     violations: List[str] = []
     if len(answer) > MAX_ANSWER_CHARS:
         violations.append("answer_too_long")
+    if (
+        intent is not None
+        and intent not in CTA_ALLOWED_INTENTS
+        and any(phrase in normalized for phrase in CTA_PHRASES)
+    ):
+        violations.append("cta_not_allowed_for_intent")
     if any(phrase in normalized for phrase in SAFE_REFUSALS):
         return violations
 
@@ -230,10 +250,19 @@ def answer_violations(answer: str, evidence_status: str) -> List[str]:
     return violations
 
 
-def build_repair_instruction(violations: Sequence[str], evidence_status: str) -> str:
+def build_repair_instruction(
+    violations: Sequence[str],
+    evidence_status: str,
+    intent: Optional[str] = None,
+) -> str:
     """Build a concise correction request while keeping evidence rules authoritative."""
 
     joined = ", ".join(violations)
+    cta_rule = (
+        "Bu niyette iletişim, demo, randevu veya form çağrısı kullanma. "
+        if intent is not None and intent not in CTA_ALLOWED_INTENTS
+        else "CTA kullanacaksan yalnız tek ve kısa bir sonraki adım sun. "
+    )
     return (
         "Önceki taslak kanıt statüsü kurallarını ihlal etti. "
         f"Kanıt statüsü: {evidence_status}. İhlaller: {joined}. "
@@ -241,11 +270,15 @@ def build_repair_instruction(violations: Sequence[str], evidence_status: str) ->
         "Yeni özellik veya durum uydurma; doğrudan soruyu cevapla ve gereksiz "
         "demo/iletişim çağrısı ekleme. Boşluklar ve noktalama işaretleri "
         f"dâhil en fazla {MAX_ANSWER_CHARS} karakter kullan. Yalnız düzeltilmiş "
-        "nihai cevabı ver."
+        f"nihai cevabı ver. {cta_rule}"
     )
 
 
-def safe_fallback(evidence_status: str, query: str = "") -> str:
+def safe_fallback(
+    evidence_status: str,
+    query: str = "",
+    intent: Optional[str] = None,
+) -> str:
     """Return a deterministic, topic-aware answer when correction remains unsafe."""
 
     normalized_query = _normalize(query)

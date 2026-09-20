@@ -247,6 +247,12 @@ pytest -q tests/test_database.py
 - [x] Kullanıcıya dönen AI cevaplarını boşluk ve noktalama dâhil 250 karakterle sınırla.
 - [x] Rakip/ürün fiyatı niyetini abonelik ve paket fiyatlandırmasından ayır.
 - [x] Groq 429 ve boş cevaplarını kanıt statüsüne uygun güvenli fallback ile karşıla.
+- [x] IntentClassifier ile ürün, fiyat, entegrasyon, güvenlik, demo ve saldırı niyetlerini ayır.
+- [x] Retrieval sonucuna deterministik skor ve düşük/orta/yüksek güven seviyesi ekle.
+- [x] FAQ sorularında hazır cevap kullanma; nihai cevabın AI tarafından üretilmesini testle zorunlu kıl.
+- [x] 100 soruluk dengeli niyet, kanıt statüsü, bölüm ve CTA değerlendirme seti ekle.
+- [x] Groq 5xx, timeout, ağ hatası ve `finish_reason=length` cevaplarını güvenli fallback ile karşıla.
+- [x] CTA iznini niyetten üret ve izinsiz CTA cevaplarını AnswerGuard ile düzelt.
 
 ### Test kapısı
 

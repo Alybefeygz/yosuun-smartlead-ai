@@ -11,7 +11,15 @@ from app.services.ai_service import (
     GROQ_CHAT_COMPLETIONS_URL,
 )
 from app.services.answer_guard import MAX_ANSWER_CHARS
-from app.services.knowledge_service import EVIDENCE_VISION, RetrievalResult
+from app.services.intent_classifier import (
+    INTENT_DEMO_CONTACT,
+    INTENT_PRODUCT_CAPABILITY,
+)
+from app.services.knowledge_service import (
+    EVIDENCE_PILOT,
+    EVIDENCE_VISION,
+    RetrievalResult,
+)
 
 
 class FakeResponse:
@@ -49,6 +57,8 @@ def test_message_order_is_system_history_then_current_user():
     assert messages[0]["content"].startswith("Sabit sistem talimatı")
     assert "Bilgi bağlamında bulunmayan" in messages[0]["content"]
     assert "en fazla 250 karakter" in messages[0]["content"]
+    assert "Niyet: out_of_scope" in messages[0]["content"]
+    assert "CTA: YASAK" in messages[0]["content"]
     assert messages[1:] == [
         {"role": "user", "content": "Eski soru"},
         {"role": "assistant", "content": "Eski cevap"},
@@ -186,6 +196,37 @@ def test_relevant_knowledge_is_added_only_to_system_message():
     assert messages[-1] == {"role": "user", "content": "Stok yönetimi var mı?"}
 
 
+def test_faq_question_still_calls_ai_provider(monkeypatch):
+    calls = []
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["messages"])
+        return FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "Yosuun, e-ticaret operasyonlarını kolaylaştırmayı "
+                                "hedefleyen bir ürün vizyonudur."
+                            )
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(api_key="test-api-key")
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert result.startswith("Yosuun")
+    assert len(calls) == 1
+    assert calls[0][-1]["content"] == "Yosuun nedir?"
+
+
 def test_unsupported_live_claim_is_repaired_before_return(monkeypatch):
     responses = iter(
         [
@@ -220,6 +261,94 @@ def test_unsupported_live_claim_is_repaired_before_return(monkeypatch):
     assert result == "Yosuun stok kontrolü yükünü azaltmayı hedefliyor."
     assert len(calls) == 2
     assert "kanıt statüsü kurallarını ihlal etti" in calls[1][-1]["content"]
+
+
+def test_disallowed_cta_is_repaired_according_to_intent(monkeypatch):
+    responses = iter(
+        [
+            (
+                "Yosuun stok kontrolünü azaltmayı hedefliyor. "
+                "Demo için iletişim formunu doldurun."
+            ),
+            "Yosuun stok kontrolünü azaltmayı hedefliyor.",
+        ]
+    )
+    calls = []
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["messages"])
+        return FakeResponse(
+            {"choices": [{"message": {"content": next(responses)}}]}
+        )
+
+    class CapabilityKnowledge:
+        def retrieve_result(self, _query, **_limits):
+            return RetrievalResult(
+                context="[KANIT STATÜSÜ: ÜRÜN VİZYONU]",
+                evidence_status=EVIDENCE_VISION,
+                section_titles=("Stok Yönetimi",),
+                intent=INTENT_PRODUCT_CAPABILITY,
+                retrieval_score=40,
+                confidence="high",
+            )
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=CapabilityKnowledge(),
+    )
+
+    result = service.yanit_uret("Stok yönetimi var mı?", [])
+
+    assert result == "Yosuun stok kontrolünü azaltmayı hedefliyor."
+    assert len(calls) == 2
+    assert "cta_not_allowed_for_intent" in calls[1][-1]["content"]
+    assert "iletişim, demo, randevu veya form çağrısı kullanma" in (
+        calls[1][-1]["content"]
+    )
+
+
+def test_demo_intent_can_return_one_short_cta_without_repair(monkeypatch):
+    calls = []
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["messages"])
+        return FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "Yosuun genel olarak pilot aşamasındadır. "
+                                "Demo için iletişim formunu doldurabilirsiniz."
+                            )
+                        }
+                    }
+                ]
+            }
+        )
+
+    class DemoKnowledge:
+        def retrieve_result(self, _query, **_limits):
+            return RetrievalResult(
+                context="[KANIT STATÜSÜ: GENEL ÜRÜN PİLOT DURUMU]",
+                evidence_status=EVIDENCE_PILOT,
+                section_titles=("Demo",),
+                intent=INTENT_DEMO_CONTACT,
+                retrieval_score=40,
+                confidence="high",
+            )
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=DemoKnowledge(),
+    )
+
+    result = service.yanit_uret("Demo alabilir miyim?", [])
+
+    assert "iletişim formunu" in result
+    assert len(calls) == 1
 
 
 def test_repeated_overclaim_uses_deterministic_safe_fallback(monkeypatch):
@@ -302,15 +431,17 @@ def test_repeated_long_answer_uses_bounded_fallback(monkeypatch):
     assert len(result) <= MAX_ANSWER_CHARS
 
 
-def test_timeout_is_normalized_to_ai_service_error(monkeypatch):
+def test_timeout_returns_bounded_safe_fallback(monkeypatch):
     def timeout(*_args, **_kwargs):
         raise requests.Timeout("provider detail")
 
     monkeypatch.setattr(ai_service_module.requests, "post", timeout)
-    service = AIService(api_key="test-api-key")
+    service = AIService(api_key="test-api-key", knowledge_service=None)
 
-    with pytest.raises(AIServiceError, match="zaman aşımı"):
-        service.yanit_uret("Merhaba", [])
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert "doğrulanmış bilgi" in result
+    assert len(result) <= MAX_ANSWER_CHARS
 
 
 def test_http_rate_limit_returns_bounded_safe_fallback(monkeypatch):
@@ -356,7 +487,7 @@ def test_http_rate_limit_preserves_retrieved_topic_in_fallback(monkeypatch):
     assert len(result) <= MAX_ANSWER_CHARS
 
 
-def test_other_http_error_is_normalized_without_provider_body(monkeypatch):
+def test_server_http_error_returns_bounded_safe_fallback(monkeypatch):
     monkeypatch.setattr(
         ai_service_module.requests,
         "post",
@@ -367,11 +498,64 @@ def test_other_http_error_is_normalized_without_provider_body(monkeypatch):
     )
     service = AIService(api_key="test-api-key", knowledge_service=None)
 
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert "doğrulanmış bilgi" in result
+    assert len(result) <= MAX_ANSWER_CHARS
+
+
+def test_client_http_error_is_normalized_without_provider_body(monkeypatch):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {"private": "provider-secret-body"},
+            status_code=400,
+        ),
+    )
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
     with pytest.raises(AIServiceError) as error_info:
         service.yanit_uret("Yosuun nedir?", [])
 
-    assert error_info.value.status_code == 500
+    assert error_info.value.status_code == 400
     assert "provider-secret-body" not in str(error_info.value)
+
+
+def test_network_error_returns_bounded_safe_fallback(monkeypatch):
+    def connection_error(*_args, **_kwargs):
+        raise requests.ConnectionError("private network detail")
+
+    monkeypatch.setattr(ai_service_module.requests, "post", connection_error)
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert "doğrulanmış bilgi" in result
+    assert len(result) <= MAX_ANSWER_CHARS
+
+
+def test_truncated_provider_answer_returns_bounded_safe_fallback(monkeypatch):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "Yarım kalan cevap"},
+                        "finish_reason": "length",
+                    }
+                ]
+            }
+        ),
+    )
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert result != "Yarım kalan cevap"
+    assert len(result) <= MAX_ANSWER_CHARS
 
 
 def test_invalid_provider_json_is_normalized(monkeypatch):
