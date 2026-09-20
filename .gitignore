@@ -1,0 +1,26 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+venv/
+.venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime data
+*.sqlite
+*.sqlite3
+instance/
+
+# Editors and operating systems
+.DS_Store
+.vscode/
+.idea/
