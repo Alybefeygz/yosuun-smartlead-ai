@@ -17,6 +17,9 @@ from app.services.knowledge_service import (
 )
 
 
+MAX_ANSWER_CHARS = 250
+
+
 SAFE_REFUSALS = (
     "yerine getiremiyorum",
     "paylasamam",
@@ -167,10 +170,12 @@ def answer_violations(answer: str, evidence_status: str) -> List[str]:
     """Return machine-readable reasons an answer exceeds its evidence status."""
 
     normalized = _normalize(answer)
-    if any(phrase in normalized for phrase in SAFE_REFUSALS):
-        return []
-
     violations: List[str] = []
+    if len(answer) > MAX_ANSWER_CHARS:
+        violations.append("answer_too_long")
+    if any(phrase in normalized for phrase in SAFE_REFUSALS):
+        return violations
+
     if evidence_status == EVIDENCE_VISION:
         if not any(phrase in normalized for phrase in VISION_HEDGES):
             violations.append("vision_language_missing")
@@ -234,7 +239,9 @@ def build_repair_instruction(violations: Sequence[str], evidence_status: str) ->
         f"Kanıt statüsü: {evidence_status}. İhlaller: {joined}. "
         "Cevabı yalnız sağlanan bilgi bağlamına dayanarak yeniden yaz. "
         "Yeni özellik veya durum uydurma; doğrudan soruyu cevapla ve gereksiz "
-        "demo/iletişim çağrısı ekleme. Yalnız düzeltilmiş nihai cevabı ver."
+        "demo/iletişim çağrısı ekleme. Boşluklar ve noktalama işaretleri "
+        f"dâhil en fazla {MAX_ANSWER_CHARS} karakter kullan. Yalnız düzeltilmiş "
+        "nihai cevabı ver."
     )
 
 
@@ -258,10 +265,9 @@ def safe_fallback(evidence_status: str, query: str = "") -> str:
             )
         if "ajans" in normalized_query:
             return (
-                "Yosuun, e-ticaret ajanslarının birden fazla marka operasyonunu daha "
-                "merkezi yönetmesini, manuel kontrolleri azaltmasını ve ekip kapasitesini "
-                "daha verimli kullanmasını hedefler. Bunlar ürün vizyonu ve kullanım "
-                "senaryosudur; güncel canlı modül kapsamı ayrıca doğrulanmalıdır."
+                "Yosuun, ajansların birden fazla marka operasyonunu merkezi yönetmesini, "
+                "manuel kontrolleri azaltmasını ve ekip kapasitesini verimli kullanmasını "
+                "hedefler. Bu bir ürün vizyonudur; güncel canlı kapsam ayrıca doğrulanmalıdır."
             )
         if "siparis" in normalized_query:
             return (

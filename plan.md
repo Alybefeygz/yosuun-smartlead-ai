@@ -244,6 +244,7 @@ pytest -q tests/test_database.py
 - [x] Hatalı cevabı bir kez yeniden yazdır; tekrarında konuya özel güvenli fallback döndür.
 - [x] Unicode tire ve pasif kesinlik kalıplarını doğruluk denetimine dahil et.
 - [x] Vizyon cevaplarında özellik anlatan her cümlede kanıt sınırı bulunmasını zorunlu kıl.
+- [x] Kullanıcıya dönen AI cevaplarını boşluk ve noktalama dâhil 250 karakterle sınırla.
 
 ### Test kapısı
 

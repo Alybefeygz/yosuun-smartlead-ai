@@ -2,7 +2,12 @@
 
 import pytest
 
-from app.services.answer_guard import answer_violations, safe_fallback
+from app.services.answer_guard import (
+    FALLBACKS,
+    MAX_ANSWER_CHARS,
+    answer_violations,
+    safe_fallback,
+)
 from app.services.knowledge_service import (
     EVIDENCE_HISTORICAL,
     EVIDENCE_POLICY,
@@ -84,6 +89,12 @@ def test_evidence_compliant_answers_are_allowed(answer, status):
     assert answer_violations(answer, status) == []
 
 
+def test_answer_over_character_limit_is_rejected_even_when_it_is_a_refusal():
+    answer = "Bu isteği yerine getiremiyorum. " + ("x" * MAX_ANSWER_CHARS)
+
+    assert "answer_too_long" in answer_violations(answer, EVIDENCE_VISION)
+
+
 def test_fallback_is_deterministic_and_matches_evidence_boundary():
     fallback = safe_fallback(EVIDENCE_UNKNOWN)
 
@@ -111,3 +122,17 @@ def test_unknown_platform_fallback_does_not_invent_development_status():
     assert fallback.startswith("Shopify entegrasyonu")
     assert "doğrulanmış güncel bilgi bulunmuyor" in fallback
     assert "varsayamam" in fallback
+
+
+def test_every_curated_fallback_respects_character_limit():
+    topic_fallbacks = [
+        safe_fallback(EVIDENCE_VISION, topic)
+        for topic in ("stok", "rakip", "ajans", "sipariş")
+    ]
+    topic_fallbacks.extend(
+        safe_fallback(EVIDENCE_UNKNOWN, topic)
+        for topic in ("shopify", "hepsiburada", "amazon", "fiyat")
+    )
+
+    assert all(len(answer) <= MAX_ANSWER_CHARS for answer in FALLBACKS.values())
+    assert all(len(answer) <= MAX_ANSWER_CHARS for answer in topic_fallbacks)

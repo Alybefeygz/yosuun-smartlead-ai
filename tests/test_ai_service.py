@@ -10,6 +10,7 @@ from app.services.ai_service import (
     DEMO_MODE_RESPONSE,
     GROQ_CHAT_COMPLETIONS_URL,
 )
+from app.services.answer_guard import MAX_ANSWER_CHARS
 from app.services.knowledge_service import EVIDENCE_VISION, RetrievalResult
 
 
@@ -47,6 +48,7 @@ def test_message_order_is_system_history_then_current_user():
     assert messages[0]["role"] == "system"
     assert messages[0]["content"].startswith("Sabit sistem talimatı")
     assert "Bilgi bağlamında bulunmayan" in messages[0]["content"]
+    assert "en fazla 250 karakter" in messages[0]["content"]
     assert messages[1:] == [
         {"role": "user", "content": "Eski soru"},
         {"role": "assistant", "content": "Eski cevap"},
@@ -251,6 +253,53 @@ def test_repeated_overclaim_uses_deterministic_safe_fallback(monkeypatch):
     assert "ürün vizyonunda" in result
     assert "Güncel canlı özellik" in result
     assert "doğrulanmamıştır" in result
+    assert len(result) <= MAX_ANSWER_CHARS
+
+
+def test_answer_over_250_characters_is_repaired_before_return(monkeypatch):
+    responses = iter(
+        [
+            "x" * (MAX_ANSWER_CHARS + 1),
+            "Yosuun hakkında kısa ve doğrulanmış cevap.",
+        ]
+    )
+    calls = []
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["messages"])
+        return FakeResponse(
+            {"choices": [{"message": {"content": next(responses)}}]}
+        )
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert result == "Yosuun hakkında kısa ve doğrulanmış cevap."
+    assert len(result) <= MAX_ANSWER_CHARS
+    assert len(calls) == 2
+    assert "answer_too_long" in calls[1][-1]["content"]
+    assert "en fazla 250 karakter" in calls[1][-1]["content"]
+
+
+def test_repeated_long_answer_uses_bounded_fallback(monkeypatch):
+    monkeypatch.setattr(
+        ai_service_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(
+            {
+                "choices": [
+                    {"message": {"content": "x" * (MAX_ANSWER_CHARS + 1)}}
+                ]
+            }
+        ),
+    )
+    service = AIService(api_key="test-api-key", knowledge_service=None)
+
+    result = service.yanit_uret("Yosuun nedir?", [])
+
+    assert len(result) <= MAX_ANSWER_CHARS
 
 
 def test_timeout_is_normalized_to_ai_service_error(monkeypatch):

@@ -18,7 +18,7 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 149 otomatik test
+- 153 otomatik test
 
 ## Teknoloji yığını
 
@@ -140,6 +140,10 @@ Başarılı cevap:
 {"basari": true, "cevap": "..."}
 ```
 
+`cevap` alanı boşluklar ve noktalama işaretleri dâhil en fazla 250 karakterdir.
+Uzun model çıktıları bir kez yeniden yazdırılır; sınır tekrar aşılırsa
+kanıt statüsüne uygun kısa ve deterministik fallback kullanılır.
+
 ### Lead oluşturma
 
 `POST /api/leads`
@@ -242,6 +246,7 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - AI yalnızca soruyla ilgili küratörlü bilgi bölümlerini alır; authoring/system prompt bölümleri retrieval dışında tutulur.
 - Her bilgi bölümü `doğrulanmış`, `ürün vizyonu`, `tarihsel`, `bilinmiyor`, `atfedilmiş iddia`, `politika` veya `pilot` statüsü taşır.
 - Modelin statü sınırını aşan cevabı bir kez düzeltilir; tekrar başarısız olursa konuya özel güvenli cevap kullanılır.
+- Kullanıcıya dönen AI cevabı en fazla 250 karakterdir; yarım cümle kesmek yerine düzeltme veya güvenli fallback uygulanır.
 - Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 
