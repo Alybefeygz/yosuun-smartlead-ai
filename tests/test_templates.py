@@ -58,6 +58,8 @@ def test_home_template_exposes_accessible_ui_contract(client):
         "messageInput",
         "askButton",
         "answerText",
+        "adminLoginLink",
+        "assistantStatus",
         "leadForm",
         "nameInput",
         "phoneInput",
@@ -70,6 +72,8 @@ def test_home_template_exposes_accessible_ui_contract(client):
     )
     assert inspector.tags_by_id["messageInput"] == "input"
     assert inspector.attributes_by_id["messageInput"]["type"] == "text"
+    assert inspector.tags_by_id["adminLoginLink"] == "a"
+    assert inspector.attributes_by_id["adminLoginLink"]["href"] == "/login"
 
 
 def test_dashboard_template_exposes_safe_rendering_contract(authenticated_client):

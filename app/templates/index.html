@@ -21,7 +21,7 @@
               <span class="brand__mark" aria-hidden="true">Y</span>
               <span class="brand__name">yosuun</span>
             </a>
-            <p class="landing-header__status"><span aria-hidden="true"></span> AI Asistan aktif</p>
+            <a class="button button--ghost landing-header__login" id="adminLoginLink" href="{{ url_for('auth.login') }}">Yönetici girişi</a>
           </header>
 
           <div class="landing-slider" id="landingSlider" data-slide="0">
@@ -48,6 +48,7 @@
                         <h2 id="chatTitle">Yosuun AI Asistan</h2>
                         <p><span aria-hidden="true"></span> Sorularınız için burada</p>
                       </div>
+                      <p class="landing-header__status chat-panel__status" id="assistantStatus"><span aria-hidden="true"></span> AI Asistan aktif</p>
                     </div>
 
                     <div class="chat-panel__messages" id="chatMessages" aria-label="Sohbet mesajları">
