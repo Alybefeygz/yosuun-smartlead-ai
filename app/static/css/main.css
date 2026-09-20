@@ -104,12 +104,10 @@ button {
 
 .brand__mark {
   display: block;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.8rem;
+  height: 2.8rem;
   flex: 0 0 auto;
-  border-radius: 10px;
-  object-fit: cover;
-  box-shadow: 0 0 0 1px rgba(120, 246, 102, 0.28);
+  object-fit: contain;
 }
 
 .button {
@@ -376,12 +374,10 @@ button {
 
 .assistant-avatar {
   display: block;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 3.2rem;
+  height: 3.2rem;
   flex: 0 0 auto;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 0 0 1px rgba(120, 246, 102, 0.3);
+  object-fit: contain;
 }
 
 .chat-panel__header h2 {
