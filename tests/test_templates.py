@@ -60,6 +60,8 @@ def test_home_template_exposes_accessible_ui_contract(client):
         "answerText",
         "adminLoginLink",
         "assistantStatus",
+        "brandLogo",
+        "assistantLogo",
         "leadForm",
         "nameInput",
         "phoneInput",
@@ -74,6 +76,11 @@ def test_home_template_exposes_accessible_ui_contract(client):
     assert inspector.attributes_by_id["messageInput"]["type"] == "text"
     assert inspector.tags_by_id["adminLoginLink"] == "a"
     assert inspector.attributes_by_id["adminLoginLink"]["href"] == "/login"
+    assert inspector.tags_by_id["brandLogo"] == "img"
+    assert inspector.attributes_by_id["brandLogo"]["src"].endswith(
+        "/static/images/logo.png"
+    )
+    assert inspector.tags_by_id["assistantLogo"] == "img"
 
 
 def test_dashboard_template_exposes_safe_rendering_contract(authenticated_client):
@@ -124,6 +131,8 @@ def test_login_template_matches_accessible_ui_contract(client):
         "usernameInput",
         "passwordInput",
         "homeBackLink",
+        "brandLogo",
+        "assistantLogo",
     } <= (
         inspector.ids
     )
@@ -142,7 +151,7 @@ def test_login_template_matches_accessible_ui_contract(client):
         ("/static/js/api-client.js", "javascript"),
         ("/static/js/home.js", "javascript"),
         ("/static/js/dashboard.js", "javascript"),
-        ("/static/images/favicon.svg", "svg"),
+        ("/static/images/logo.png", "png"),
     ],
 )
 def test_static_assets_are_served(client, path, content_type):

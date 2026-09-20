@@ -103,15 +103,13 @@ button {
 }
 
 .brand__mark {
-  display: grid;
+  display: block;
   width: 2.2rem;
   height: 2.2rem;
-  place-items: center;
-  border-radius: 9px 9px 9px 2px;
-  color: var(--ink);
-  background: var(--brand);
-  font-size: 1rem;
-  font-weight: 950;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(120, 246, 102, 0.28);
 }
 
 .button {
@@ -377,15 +375,13 @@ button {
 }
 
 .assistant-avatar {
-  display: grid;
+  display: block;
   width: 2.5rem;
   height: 2.5rem;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 12px 12px 12px 4px;
-  color: var(--ink);
-  background: var(--brand);
-  font-weight: 950;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(120, 246, 102, 0.3);
 }
 
 .chat-panel__header h2 {

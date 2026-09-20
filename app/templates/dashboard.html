@@ -6,7 +6,7 @@
     <meta name="description" content="Yosuun iletişim talepleri yönetim paneli.">
     <meta name="theme-color" content="#0b0d0c">
     <title>Yönetim Paneli | Yosuun</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='images/logo.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script type="module" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
   </head>
@@ -17,7 +17,7 @@
       <section class="landing-shell dashboard-shell" aria-labelledby="dashboardTitle">
         <header class="landing-header">
           <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
-            <span class="brand__mark" aria-hidden="true">Y</span>
+            <img class="brand__mark" id="brandLogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="" width="35" height="35">
             <span class="brand__name">yosuun</span>
           </a>
           <div class="dashboard-header__actions">

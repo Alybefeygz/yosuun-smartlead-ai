@@ -6,7 +6,7 @@
     <meta name="description" content="Yosuun AI Asistan ile e-ticaret operasyonlarınız hakkında bilgi alın.">
     <meta name="theme-color" content="#0b0d0c">
     <title>Yosuun | AI Asistan</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='images/logo.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script type="module" src="{{ url_for('static', filename='js/home.js') }}"></script>
   </head>
@@ -18,7 +18,7 @@
         <section class="landing-shell" aria-label="Yosuun karşılama alanı">
           <header class="landing-header">
             <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
-              <span class="brand__mark" aria-hidden="true">Y</span>
+              <img class="brand__mark" id="brandLogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="" width="35" height="35">
               <span class="brand__name">yosuun</span>
             </a>
             <a class="button button--ghost landing-header__login" id="adminLoginLink" href="{{ url_for('auth.login') }}">Yönetici girişi</a>
@@ -43,7 +43,7 @@
 
                   <article class="chat-panel" id="assistant" aria-labelledby="chatTitle">
                     <div class="chat-panel__header">
-                      <span class="assistant-avatar" aria-hidden="true">Y</span>
+                      <img class="assistant-avatar" id="assistantLogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="" width="40" height="40">
                       <div>
                         <h2 id="chatTitle">Yosuun AI Asistan</h2>
                         <p><span aria-hidden="true"></span> Sorularınız için burada</p>

@@ -65,7 +65,7 @@ Browser /dashboard -> Flask template + static assets
 │       ├── css/
 │       │   └── main.css
 │       ├── images/
-│       │   └── favicon.svg
+│       │   └── logo.png
 │       └── js/
 │           ├── api-client.js
 │           ├── home.js
