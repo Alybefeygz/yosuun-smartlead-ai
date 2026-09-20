@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Yosuun AI Asistan ile e-ticaret operasyonlarınız hakkında bilgi alın.">
+    <meta name="theme-color" content="#0b0d0c">
+    <title>Yosuun | AI Asistan</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script type="module" src="{{ url_for('static', filename='js/home.js') }}"></script>
+  </head>
+  <body class="site-page">
+    <a class="skip-link" href="#mainContent">Ana içeriğe geç</a>
+
+    <main class="landing-page" id="mainContent">
+      <div class="landing-stage">
+        <section class="landing-shell" aria-label="Yosuun karşılama alanı">
+          <header class="landing-header">
+            <a class="brand" href="{{ url_for('main.index') }}" aria-label="Yosuun ana sayfa">
+              <span class="brand__mark" aria-hidden="true">Y</span>
+              <span class="brand__name">yosuun</span>
+            </a>
+            <p class="landing-header__status"><span aria-hidden="true"></span> AI Asistan aktif</p>
+          </header>
+
+          <div class="landing-slider" id="landingSlider" data-slide="0">
+            <div class="landing-slider__track">
+              <section class="landing-slider__slide" id="assistantSlide" aria-labelledby="heroTitle">
+                <div class="landing-layout">
+                  <div class="landing-copy">
+                    <p class="eyebrow"><span aria-hidden="true"></span> Akıllı e-ticaret operasyonu</p>
+                    <h1 class="hero-title" id="heroTitle">
+                      <span class="hero-title__lead">Sen hayatını yaşa.</span>
+                      <span class="hero-title__commerce">E-ticareti</span>
+                      <span class="hero-title__brand">Yosuun <span>halletsin.</span></span>
+                    </h1>
+                    <p>
+                      Ürün, stok, rakip ve operasyon süreçlerinizle ilgili sorunuzu
+                      Yosuun AI Asistan'a yazın.
+                    </p>
+                  </div>
+
+                  <article class="chat-panel" id="assistant" aria-labelledby="chatTitle">
+                    <div class="chat-panel__header">
+                      <span class="assistant-avatar" aria-hidden="true">Y</span>
+                      <div>
+                        <h2 id="chatTitle">Yosuun AI Asistan</h2>
+                        <p><span aria-hidden="true"></span> Sorularınız için burada</p>
+                      </div>
+                    </div>
+
+                    <div class="chat-panel__messages" id="chatMessages" aria-label="Sohbet mesajları">
+                      <div class="chat-bubble chat-bubble--assistant chat-bubble--welcome">
+                        Merhaba! Yosuun hakkında merak ettiğiniz konuyu yazabilirsiniz.
+                      </div>
+                    </div>
+                    <p class="visually-hidden" id="answerText" role="status" aria-live="polite" hidden></p>
+
+                    <form class="chat-form" id="chatForm" novalidate>
+                      <label for="messageInput">Mesajınız</label>
+                      <div class="chat-form__composer">
+                        <input id="messageInput" name="message" type="text" maxlength="4000" autocomplete="off" placeholder="Sorunuzu yazın…" required>
+                        <button class="button button--primary" id="askButton" type="submit" aria-label="Mesajı gönder">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M3.4 4.2 21 12 3.4 19.8l1.7-6.2 9.1-1.6-9.1-1.6-1.7-6.2Z"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <p class="field-hint">Kişisel veya hassas bilgilerinizi paylaşmayın.</p>
+                    </form>
+                  </article>
+                </div>
+              </section>
+
+              <section class="landing-slider__slide" id="contactSlide" aria-labelledby="contactTitle" aria-hidden="true" inert>
+                <div class="lead-section">
+                  <div class="lead-section__heading">
+                    <p class="eyebrow"><span aria-hidden="true"></span> Size ulaşalım</p>
+                    <h2 id="contactTitle">İletişim bilgilerinizi bırakın.</h2>
+                    <p>Yosuun ekibi ihtiyacınızı dinlemek için sizinle iletişime geçsin.</p>
+                  </div>
+
+                  <form class="lead-form" id="leadForm" novalidate>
+                    <div class="field">
+                      <label for="nameInput">Ad soyad <span aria-hidden="true">*</span></label>
+                      <input id="nameInput" name="name" type="text" maxlength="100" autocomplete="name" placeholder="Adınız ve soyadınız" required>
+                    </div>
+                    <div class="field">
+                      <label for="phoneInput">Telefon <span aria-hidden="true">*</span></label>
+                      <input id="phoneInput" name="phone" type="tel" maxlength="50" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx" required>
+                    </div>
+                    <div class="field field--full">
+                      <label for="leadMessageInput">Mesaj</label>
+                      <textarea id="leadMessageInput" name="leadMessage" rows="4" maxlength="2000" placeholder="Kısaca ihtiyacınızdan bahsedin"></textarea>
+                    </div>
+                    <button class="button button--primary field--full" id="saveLeadButton" type="submit">Kaydet</button>
+                    <p class="form-status field--full" id="statusText" role="status" aria-live="polite" hidden></p>
+                  </form>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <nav class="slider-controls" aria-label="Ekran geçişleri">
+          <button class="slider-control" id="prevSlideButton" type="button" aria-label="Sohbet ekranına dön" disabled>
+            <span aria-hidden="true">←</span>
+          </button>
+          <div class="slider-dots" aria-label="Etkin ekran">
+            <button class="slider-dot" type="button" data-slide-target="0" aria-label="Sohbet ekranını göster" aria-current="true"></button>
+            <button class="slider-dot" type="button" data-slide-target="1" aria-label="İletişim ekranını göster" aria-current="false"></button>
+          </div>
+          <button class="slider-control" id="nextSlideButton" type="button" aria-label="İletişim ekranına geç">
+            <span aria-hidden="true">→</span>
+          </button>
+          <span class="visually-hidden" id="slideStatus" aria-live="polite">Sohbet ekranı gösteriliyor</span>
+        </nav>
+      </div>
+    </main>
+  </body>
+</html>
