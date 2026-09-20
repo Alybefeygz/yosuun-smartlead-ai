@@ -29,7 +29,11 @@ class FakeResponse:
 
 
 def test_message_order_is_system_history_then_current_user():
-    service = AIService(api_key=None, business_context="Sabit sistem talimatı")
+    service = AIService(
+        api_key=None,
+        business_context="Sabit sistem talimatı",
+        knowledge_service=None,
+    )
 
     messages = service._build_messages(
         "Yeni soru",
@@ -39,8 +43,10 @@ def test_message_order_is_system_history_then_current_user():
         ],
     )
 
-    assert messages == [
-        {"role": "system", "content": "Sabit sistem talimatı"},
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"].startswith("Sabit sistem talimatı")
+    assert "Bilgi bağlamında bulunmayan" in messages[0]["content"]
+    assert messages[1:] == [
         {"role": "user", "content": "Eski soru"},
         {"role": "assistant", "content": "Eski cevap"},
         {"role": "user", "content": "Yeni soru"},
@@ -150,6 +156,30 @@ def test_provider_success_returns_trimmed_content_and_uses_contract(monkeypatch)
         "role": "user",
         "content": "Yosuun nedir?",
     }
+    assert captured["json"]["temperature"] == 0.3
+    assert captured["json"]["max_completion_tokens"] == 500
+    assert captured["json"]["include_reasoning"] is False
+
+
+def test_relevant_knowledge_is_added_only_to_system_message():
+    class FakeKnowledgeService:
+        def retrieve(self, query, **limits):
+            assert query == "Stok yönetimi var mı?"
+            assert limits == {"max_sections": 2, "max_chars": 1200}
+            return "### Stok Yönetimi\nDoğrulanmış stok bilgisi."
+
+    service = AIService(
+        api_key="test-api-key",
+        knowledge_service=FakeKnowledgeService(),
+        knowledge_max_sections=2,
+        knowledge_max_chars=1200,
+    )
+
+    messages = service._build_messages("Stok yönetimi var mı?", [])
+
+    assert "YOSUUN BİLGİ BAĞLAMI" in messages[0]["content"]
+    assert "Doğrulanmış stok bilgisi" in messages[0]["content"]
+    assert messages[-1] == {"role": "user", "content": "Stok yönetimi var mı?"}
 
 
 def test_timeout_is_normalized_to_ai_service_error(monkeypatch):
@@ -231,6 +261,11 @@ def test_unsupported_provider_is_rejected_without_network_call(monkeypatch):
         {"timeout": 0},
         {"max_history_messages": 0},
         {"max_history_chars": 0},
+        {"temperature": -0.1},
+        {"temperature": 2.1},
+        {"max_completion_tokens": 0},
+        {"knowledge_max_sections": 0},
+        {"knowledge_max_chars": 0},
         {"model": ""},
         {"business_context": ""},
     ],

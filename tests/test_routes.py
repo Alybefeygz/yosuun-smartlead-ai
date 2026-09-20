@@ -6,6 +6,7 @@ import pytest
 
 import app.routes as routes_module
 from app.services.ai_service import AIServiceError
+from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
 def assert_validation_error(response):
@@ -62,6 +63,26 @@ def test_chat_success_validates_and_delegates(client, monkeypatch):
             {"role": "assistant", "content": "Eski cevap"},
         ],
     }
+
+
+def test_chat_rate_limit_returns_retry_after(app, client, monkeypatch):
+    monkeypatch.setattr(
+        routes_module.ai_service,
+        "yanit_uret",
+        lambda *_args, **_kwargs: "Yosuun cevabı",
+    )
+    app.extensions["yosuun_chat_limiter"] = SlidingWindowRateLimiter(
+        max_requests=1,
+        window_seconds=60,
+    )
+
+    first = client.post("/api/sohbet", json={"mesaj": "Merhaba"})
+    second = client.post("/api/sohbet", json={"mesaj": "Tekrar merhaba"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.get_json()["hata"]["kod"] == "RATE_LIMITED"
+    assert int(second.headers["Retry-After"]) >= 1
 
 
 @pytest.mark.parametrize(

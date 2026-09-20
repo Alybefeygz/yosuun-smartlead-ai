@@ -29,10 +29,11 @@ def create_app(
     # Imports stay inside the composition root to keep package imports acyclic.
     from app.auth import init_auth
     from app.database import init_db
-    from app.routes import main
+    from app.routes import init_chat_rate_limit, main
 
     init_db(app)
     init_auth(app)
+    init_chat_rate_limit(app)
     app.register_blueprint(main)
 
     @app.get("/health")

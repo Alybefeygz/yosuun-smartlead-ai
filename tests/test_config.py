@@ -6,6 +6,7 @@ from app import create_app
 from config import (
     ProductionConfig,
     _parse_positive_int,
+    _parse_temperature,
     resolve_config,
 )
 
@@ -21,12 +22,28 @@ def test_development_app_uses_expected_safe_defaults(tmp_path):
     assert app.config["GROQ_MODEL"] == "openai/gpt-oss-20b"
     assert app.config["AI_HISTORY_MAX_MESSAGES"] == 20
     assert app.config["AI_HISTORY_MAX_CHARS"] == 8000
+    assert app.config["AI_TEMPERATURE"] == 0.3
+    assert app.config["AI_MAX_COMPLETION_TOKENS"] == 500
+    assert app.config["AI_KNOWLEDGE_MAX_SECTIONS"] == 4
+    assert app.config["AI_KNOWLEDGE_MAX_CHARS"] == 7000
+    assert app.config["KNOWLEDGE_BASE_PATH"].endswith("knowledge/yosuun.md")
+    assert app.config["CHAT_RATE_LIMIT_REQUESTS"] == 10
     assert app.config["MAX_CONTENT_LENGTH"] == 65536
 
 
 @pytest.mark.parametrize("raw_value", ["", "0", "-1", "invalid"])
 def test_invalid_timeout_uses_safe_default(raw_value):
     assert _parse_positive_int(raw_value, default=20) == 20
+
+
+@pytest.mark.parametrize("raw_value", ["", "-0.1", "2.1", "invalid"])
+def test_invalid_temperature_uses_safe_default(raw_value):
+    assert _parse_temperature(raw_value, default=0.3) == 0.3
+
+
+@pytest.mark.parametrize("raw_value", ["0", "0.3", "2"])
+def test_valid_temperature_is_parsed(raw_value):
+    assert _parse_temperature(raw_value, default=1.0) == float(raw_value)
 
 
 def test_unknown_environment_is_rejected():

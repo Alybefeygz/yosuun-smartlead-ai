@@ -6,7 +6,9 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 
 ## Özellikler
 
-- Türkçe Yosuun AI asistanı ve sınırlı sohbet geçmişi
+- Küratörlü bilgi kaynağına dayanan Türkçe Yosuun AI asistanı
+- Soruya göre ilgili bilgi bölümlerini seçen yerel retrieval katmanı
+- Kontrollü cevap üretimi ve sınırlı sohbet geçmişi
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
 - Lead'leri en yeniden eskiye sıralayan responsive dashboard
 - Parola hash'i, CSRF ve oturum korumalı tek-admin yönetici girişi
@@ -14,7 +16,7 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 95 otomatik test
+- 125 otomatik test
 
 ## Teknoloji yığını
 
@@ -34,7 +36,9 @@ Browser
   ├── /login       -> Yönetici kimlik doğrulaması
   ├── /dashboard   -> Korumalı B2B lead listesi
   └── /api/*       -> Flask route katmanı
-                         ├── AIService -> Groq
+                         ├── AIService
+                         │    ├── KnowledgeService -> knowledge/yosuun.md
+                         │    └── Groq
                          └── database  -> SQLite
 ```
 
@@ -47,6 +51,9 @@ Başlıca dosya sorumlulukları:
 | `app/routes.py` | HTTP parse, doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
 | `app/services/ai_service.py` | Prompt oluşturma, Groq çağrısı ve demo modu |
+| `app/services/knowledge_service.py` | Markdown bilgi kaynağını bölümleme ve ilgili bağlamı seçme |
+| `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
+| `knowledge/yosuun.md` | AI'nin kullandığı küratörlü Yosuun bilgi kaynağı |
 | `app/static/js/api-client.js` | Frontend HTTP sözleşmesi |
 | `app/static/js/home.js` | Sohbet, slider ve lead formu davranışları |
 | `app/static/js/dashboard.js` | Lead listesinin güvenli DOM render işlemleri |
@@ -95,6 +102,13 @@ python -c "from getpass import getpass; from werkzeug.security import generate_p
 | `AI_TIMEOUT_SECONDS` | Hayır | `20` |
 | `AI_HISTORY_MAX_MESSAGES` | Hayır | `20` |
 | `AI_HISTORY_MAX_CHARS` | Hayır | `8000` |
+| `AI_TEMPERATURE` | Hayır | `0.3`; daha tutarlı kurumsal cevaplar |
+| `AI_MAX_COMPLETION_TOKENS` | Hayır | `500` |
+| `AI_KNOWLEDGE_MAX_SECTIONS` | Hayır | Her soruda en fazla `4` bilgi bölümü |
+| `AI_KNOWLEDGE_MAX_CHARS` | Hayır | Bilgi bağlamı için `7000` karakter |
+| `KNOWLEDGE_BASE_PATH` | Hayır | `knowledge/yosuun.md` |
+| `CHAT_RATE_LIMIT_REQUESTS` | Hayır | Pencere başına `10` sohbet isteği |
+| `CHAT_RATE_LIMIT_WINDOW_SECONDS` | Hayır | `60` saniye |
 | `MAX_CONTENT_LENGTH` | Hayır | `65536` byte |
 | `BUSINESS_CONTEXT` | Hayır | Uygulamadaki varsayılan Yosuun sistem bağlamı |
 
@@ -198,6 +212,11 @@ ADMIN_PASSWORD_HASH=<pbkdf2-parola-hash-degeri>
 GROQ_API_KEY=<gercek-groq-anahtari>
 AI_PROVIDER=groq
 GROQ_MODEL=openai/gpt-oss-20b
+AI_TEMPERATURE=0.3
+AI_MAX_COMPLETION_TOKENS=500
+KNOWLEDGE_BASE_PATH=knowledge/yosuun.md
+CHAT_RATE_LIMIT_REQUESTS=10
+CHAT_RATE_LIMIT_WINDOW_SECONDS=60
 DATABASE_URL=<kalici-disk-uzerindeki-sqlite-yolu>
 ```
 
@@ -216,15 +235,30 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - CSP, clickjacking, MIME-sniffing, referrer ve HSTS güvenlik başlıkları uygulanır.
 - Frontend kullanıcı verisini `textContent` ile render eder; `innerHTML` kullanmaz.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
+- AI yalnızca soruyla ilgili küratörlü bilgi bölümlerini alır; authoring/system prompt bölümleri retrieval dışında tutulur.
+- Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 
 ## Bilinen sınırlamalar
 
 - Kimlik doğrulama tek yönetici hesabına yöneliktir; kullanıcı yönetimi ve parola sıfırlama akışı yoktur.
 - Login deneme sınırı process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
-- Sohbet endpoint'inde rate limiting yoktur.
+- Sohbet hız sınırı process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
 - SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
 - Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
+
+## AI bilgi kaynağını güncelleme
+
+AI cevaplarının temel kaynağı `knowledge/yosuun.md` dosyasıdır. Ürün, fiyat,
+entegrasyon veya iletişim bilgisi değiştiğinde bu dosyadaki ilgili bölüm ve
+`last_updated` alanı birlikte güncellenmelidir. Bilgi kaynağı secret, müşteri
+verisi veya yayınlanması istenmeyen kişisel veri içermemelidir.
+
+Her değişiklikten sonra kalite ve retrieval testlerini çalıştırın:
+
+```bash
+python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
+```
 
 ## Bağlantılar
 

@@ -10,6 +10,7 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from app.auth import admin_api_required, admin_page_required, get_csrf_token
 from app.database import lead_ekle, tum_leadler
 from app.services.ai_service import AIServiceError, ai_service
+from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
 main = Blueprint("main", __name__)
@@ -24,6 +25,21 @@ ALLOWED_HISTORY_ROLES = frozenset({"user", "assistant"})
 
 class RequestValidationError(ValueError):
     """Raised when an HTTP request violates the public API contract."""
+
+
+def init_chat_rate_limit(app) -> None:
+    """Attach process-local abuse protection for the public chat endpoint."""
+
+    app.extensions["yosuun_chat_limiter"] = SlidingWindowRateLimiter(
+        max_requests=app.config["CHAT_RATE_LIMIT_REQUESTS"],
+        window_seconds=app.config["CHAT_RATE_LIMIT_WINDOW_SECONDS"],
+    )
+
+
+def _chat_retry_after() -> int:
+    limiter = current_app.extensions["yosuun_chat_limiter"]
+    client_key = request.remote_addr or "unknown"
+    return limiter.acquire(client_key)
 
 
 def _error_response(
@@ -152,6 +168,16 @@ def dashboard() -> str:
 @main.post("/api/sohbet")
 def sohbet() -> Tuple[Response, int]:
     """Validate a visitor message and delegate response generation to AIService."""
+
+    retry_after = _chat_retry_after()
+    if retry_after:
+        response, status_code = _error_response(
+            "RATE_LIMITED",
+            "Çok fazla sohbet isteği gönderildi. Lütfen kısa süre sonra tekrar deneyin.",
+            429,
+        )
+        response.headers["Retry-After"] = str(retry_after)
+        return response, status_code
 
     try:
         payload = _json_object()

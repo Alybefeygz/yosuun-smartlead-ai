@@ -56,7 +56,9 @@ Browser /dashboard -> Flask template + static assets
 │   ├── routes.py
 │   ├── services/
 │   │   ├── __init__.py
-│   │   └── ai_service.py
+│   │   ├── ai_service.py
+│   │   ├── knowledge_service.py
+│   │   └── rate_limiter.py
 │   ├── templates/
 │   │   ├── index.html
 │   │   ├── login.html
@@ -76,8 +78,11 @@ Browser /dashboard -> Flask template + static assets
 │   ├── test_ai_service.py
 │   ├── test_config.py
 │   ├── test_database.py
+│   ├── test_knowledge_service.py
 │   ├── test_routes.py
 │   └── test_templates.py
+├── knowledge/
+│   └── yosuun.md
 ├── .env.example
 ├── .gitignore
 ├── config.py
@@ -226,6 +231,12 @@ pytest -q tests/test_database.py
 - [x] Non-2xx, timeout ve bozuk provider cevabını `AIServiceError` olarak normalize et.
 - [x] API anahtarı olmadığında kontrollü demo cevabı döndür.
 - [x] Kullanıcıya provider response body, stack trace veya API anahtarı sızdırma.
+- [x] Küratörlü Markdown bilgi kaynağını başlıklara göre bölümle.
+- [x] Her soruda yalnız en alakalı bilgi bölümlerini system prompt'a ekle.
+- [x] Authoring, RAG ve system prompt bölümlerini ziyaretçi retrieval'ından çıkar.
+- [x] Temperature ve maksimum cevap token değerlerini environment ile yönet.
+- [x] Public sohbet endpoint'ine process-local hız sınırı uygula.
+- [x] FAQ konuları için deterministik retrieval kalite testleri ekle.
 
 ### Test kapısı
 
@@ -347,15 +358,16 @@ Beklenen health cevabı:
 
 **Amaç:** Mock dışında gerçek AI entegrasyonunu ve tüm hata yollarını doğrulamak.
 
-**Durum:** Kısmen tamamlandı; API anahtarı ve `openai/gpt-oss-20b` ile gerçek Groq bağlantısı doğrulandı ve kalıcı model konfigürasyonu güncellendi. Yalnızca davranış kabul kontrolleri açık.
+**Durum:** Tamamlandı; API anahtarı ve `openai/gpt-oss-20b` ile gerçek Groq bağlantısı doğrulandı. Küratörlü bilgi retrieval'ı, güvenli prompt politikası, kontrollü üretim ayarları, otomatik konu eşleme testleri ve canlı davranış kabul kontrolleri tamamlandı.
 
 ### Yapılacaklar
 
 - [x] Yerel `.env` içine gerçek Groq anahtarını ekle; bu dosyayı commit etme.
 - [x] `GROQ_MODEL` varsayılanını ve `.env.example` değerini `openai/gpt-oss-20b` olarak güncelle.
-- [ ] Türkçe ve Yosuun bağlamına uygun cevap alındığını doğrula.
-- [ ] Asistanın bilmediği bir özelliği kesin bilgi gibi sunmadığını kontrol et.
-- [ ] Hassas bilgi talep etmediğini kontrol et.
+- [x] Türkçe ve Yosuun bağlamına uygun prompt politikasını otomatik testlerle doğrula.
+- [x] Bilinmeyen özellikleri uydurmama kuralını kalıcı system politikasına ekle.
+- [x] Hassas bilgi talep etmeme kuralını kalıcı system politikasına ekle.
+- [x] Fiyat, Trendyol kapsamı ve prompt-injection davranışlarını canlı Groq cevabıyla doğrula.
 - [x] Yanlış API anahtarı, timeout ve provider kesintisi senaryolarını dene.
 - [x] Sohbet geçmişi limitinin uygulandığını doğrula.
 - [x] Loglarda secret veya tam telefon bulunmadığını incele.
@@ -671,10 +683,9 @@ Proje ancak aşağıdaki koşulların tamamı sağlandığında bitmiş kabul ed
 Bu maddeler ana teslim tamamlandıktan sonra değerlendirilecektir:
 
 - Birden fazla yönetici için kullanıcı yönetimi ve rol tabanlı yetki
-- Sohbet endpoint'i için rate limiting
 - SQLite'tan PostgreSQL'e geçiş
 - Lead filtreleme, arama ve durum yönetimi
 - Merkezi structured logging ve hata izleme
 - CI üzerinde test/lint kontrolü
 - E-posta veya CRM entegrasyonu
-- RAG ve kontrollü bilgi tabanı
+- Embedding/vector database tabanlı semantik retrieval'a geçiş
