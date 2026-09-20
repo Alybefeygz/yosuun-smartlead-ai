@@ -710,6 +710,7 @@ textarea:focus {
 
 .auth-stage {
   grid-template-rows: minmax(0, 1fr);
+  padding-bottom: 3.75rem;
 }
 
 .auth-shell {
@@ -1004,6 +1005,10 @@ textarea:focus {
 
   .landing-stage {
     gap: 0.5rem;
+  }
+
+  .auth-stage {
+    padding-bottom: 3.5rem;
   }
 
   .landing-shell {
