@@ -9,11 +9,12 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - Türkçe Yosuun AI asistanı ve sınırlı sohbet geçmişi
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
 - Lead'leri en yeniden eskiye sıralayan responsive dashboard
+- Parola hash'i, CSRF ve oturum korumalı tek-admin yönetici girişi
 - Aynı-origin, göreli `/api/*` istekleri
 - SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 80 otomatik test
+- 95 otomatik test
 
 ## Teknoloji yığını
 
@@ -30,7 +31,8 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 ```text
 Browser
   ├── /            -> B2C sohbet ve lead formu
-  ├── /dashboard   -> B2B lead listesi
+  ├── /login       -> Yönetici kimlik doğrulaması
+  ├── /dashboard   -> Korumalı B2B lead listesi
   └── /api/*       -> Flask route katmanı
                          ├── AIService -> Groq
                          └── database  -> SQLite
@@ -41,6 +43,7 @@ Başlıca dosya sorumlulukları:
 | Dosya | Sorumluluk |
 |---|---|
 | `app/__init__.py` | Application factory, health endpoint'i ve ortak hata yönetimi |
+| `app/auth.py` | Yönetici girişi, session, CSRF ve deneme sınırı |
 | `app/routes.py` | HTTP parse, doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
 | `app/services/ai_service.py` | Prompt oluşturma, Groq çağrısı ve demo modu |
@@ -66,9 +69,16 @@ Uygulama varsayılan olarak `http://127.0.0.1:5000` adresinde açılır:
 
 - Ziyaretçi arayüzü: `http://127.0.0.1:5000/`
 - Yönetim ekranı: `http://127.0.0.1:5000/dashboard`
+- Yönetici girişi: `http://127.0.0.1:5000/login`
 - Sağlık kontrolü: `http://127.0.0.1:5000/health`
 
 Gerçek AI yanıtları için `.env` dosyasındaki `GROQ_API_KEY` değerini doldurun. Bu dosya Git tarafından yok sayılır; gerçek anahtarları hiçbir zaman commit etmeyin.
+
+Yönetici parolasını düz metin olarak kaydetmeyin. Güçlü bir PBKDF2 hash'i üretip `.env` içindeki `ADMIN_PASSWORD_HASH` alanına ekleyin:
+
+```bash
+python -c "from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass('Yönetici parolası: '), method='pbkdf2:sha256:600000'))"
+```
 
 ## Environment değişkenleri
 
@@ -76,6 +86,8 @@ Gerçek AI yanıtları için `.env` dosyasındaki `GROQ_API_KEY` değerini doldu
 |---|---:|---|
 | `FLASK_ENV` | Production'da evet | `development`; production için `production` |
 | `SECRET_KEY` | Production'da evet | Uzun ve rastgele bir secret |
+| `ADMIN_USERNAME` | Production'da evet | Yönetici kullanıcı adı |
+| `ADMIN_PASSWORD_HASH` | Production'da evet | Düz parola değil, PBKDF2 hash değeri |
 | `DATABASE_URL` | Hayır | `instance/yosuun.sqlite3` |
 | `GROQ_API_KEY` | Gerçek AI için evet | Boşsa demo modu kullanılır |
 | `AI_PROVIDER` | Hayır | `groq` |
@@ -132,6 +144,8 @@ Başarılı cevap `201 Created` durum koduyla döner:
 
 `GET /api/leads`
 
+Bu endpoint geçerli bir yönetici session cookie'si gerektirir. Anonim istekler `401 AUTH_REQUIRED` alır.
+
 ```json
 {
   "basari": true,
@@ -179,6 +193,8 @@ python -m pytest -q tests/test_database.py
 ```text
 FLASK_ENV=production
 SECRET_KEY=<uzun-rastgele-secret>
+ADMIN_USERNAME=<yonetici-kullanici-adi>
+ADMIN_PASSWORD_HASH=<pbkdf2-parola-hash-degeri>
 GROQ_API_KEY=<gercek-groq-anahtari>
 AI_PROVIDER=groq
 GROQ_MODEL=openai/gpt-oss-20b
@@ -192,13 +208,20 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - `.env`, SQLite runtime dosyaları, sanal ortamlar ve cache çıktıları repoya alınmaz.
 - SQL yalnızca `app/database.py` içinde ve `?` placeholder'larıyla çalışır.
 - Groq çağrısı ve API anahtarı yalnızca backend tarafındadır.
+- `/dashboard` ve `GET /api/leads` sunucu tarafında yönetici oturumuyla korunur.
+- Düz parola saklanmaz; Werkzeug doğrulamalı PBKDF2 hash'i kullanılır.
+- Login ve logout formları session-bound CSRF token kullanır.
+- Production cookie'si `Secure`, `HttpOnly` ve `SameSite=Lax` olarak ayarlanır.
+- Tekrarlanan başarısız girişler geçici olarak sınırlandırılır; hassas sayfalar cache'lenmez.
+- CSP, clickjacking, MIME-sniffing, referrer ve HSTS güvenlik başlıkları uygulanır.
 - Frontend kullanıcı verisini `textContent` ile render eder; `innerHTML` kullanmaz.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
 - Production hata cevapları traceback veya secret içermez.
 
 ## Bilinen sınırlamalar
 
-- `/dashboard` ve `GET /api/leads` bu MVP'de kimlik doğrulamasıyla korunmuyor. Gerçek müşteri verisiyle production kullanımı öncesinde authentication ve authorization eklenmelidir.
+- Kimlik doğrulama tek yönetici hesabına yöneliktir; kullanıcı yönetimi ve parola sıfırlama akışı yoktur.
+- Login deneme sınırı process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
 - Sohbet endpoint'inde rate limiting yoktur.
 - SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
 - Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
@@ -206,6 +229,6 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 ## Bağlantılar
 
 - GitHub: <https://github.com/Alybefeygz/yosuun-smartlead-ai>
-- Canlı demo: Render deployment tamamlandıktan sonra eklenecek.
+- Canlı demo: <https://yosuun-smartlead-ai.onrender.com>
 
 Ayrıntılı uygulama fazları için [`plan.md`](plan.md), teknik sözleşme için [`project_documents.md`](project_documents.md) dosyasına bakın.

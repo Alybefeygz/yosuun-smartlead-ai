@@ -51,6 +51,7 @@ Browser /dashboard -> Flask template + static assets
 .
 ├── app/
 │   ├── __init__.py
+│   ├── auth.py
 │   ├── database.py
 │   ├── routes.py
 │   ├── services/
@@ -58,6 +59,7 @@ Browser /dashboard -> Flask template + static assets
 │   │   └── ai_service.py
 │   ├── templates/
 │   │   ├── index.html
+│   │   ├── login.html
 │   │   └── dashboard.html
 │   └── static/
 │       ├── css/
@@ -70,6 +72,7 @@ Browser /dashboard -> Flask template + static assets
 │           └── dashboard.js
 ├── tests/
 │   ├── conftest.py
+│   ├── test_auth.py
 │   ├── test_ai_service.py
 │   ├── test_config.py
 │   ├── test_database.py
@@ -452,14 +455,17 @@ curl http://127.0.0.1:5000/api/leads
 
 **Amaç:** Kaydedilen lead'leri aynı Flask uygulaması içinde okunabilir ve responsive bir operasyon ekranında göstermek.
 
-**Durum:** Tamamlandı; responsive dashboard, güvenli lead render akışı, yenileme ve tüm ekran durumları uygulandı.
+**Durum:** Tamamlandı; responsive dashboard, güvenli lead render akışı, yenileme, yönetici kimlik doğrulaması ve tüm ekran durumları uygulandı.
 
 ### Değişecek dosyalar
 
+- `app/auth.py`
 - `app/templates/dashboard.html`
+- `app/templates/login.html`
 - `app/static/css/main.css`
 - `app/static/js/api-client.js`
 - `app/static/js/dashboard.js`
+- `tests/test_auth.py`
 - `tests/test_templates.py`
 
 ### HTML sözleşmesi
@@ -490,10 +496,13 @@ curl http://127.0.0.1:5000/api/leads
 - [x] Tarihi `Intl.DateTimeFormat("tr-TR")` ile okunabilir yerel formata çevir.
 - [x] Mobilde tablo yerine okunabilir kart veya yatay taşmasız liste düzeni kullan.
 - [x] Template contract ve static asset testlerini ekle.
+- [x] Parola hash'i kullanan tek-admin girişini ve güvenli logout akışını ekle.
+- [x] `/dashboard` ve `GET /api/leads` endpoint'lerini session ile koru.
+- [x] Login/logout formlarında CSRF, başarısız deneme sınırı ve güvenli cookie ayarlarını uygula.
 
 ### Güvenlik notu
 
-MVP API sözleşmesinde `GET /api/leads` için backend auth zorunlu tutulmamıştır. Aynı-origin UI bu açığı tek başına kapatmaz. Gerçek kişisel veriyle production kullanımından önce `/dashboard` ve `GET /api/leads` kimlik doğrulama ve yetkilendirme ile korunmalıdır.
+`/dashboard` ve `GET /api/leads`; parola hash'iyle doğrulanan, CSRF korumalı ve süreli yönetici session'ı gerektirir. Ziyaretçilerin lead oluşturduğu `POST /api/leads` herkese açık kalır. Production kimlik bilgileri yalnızca environment variable olarak sağlanır.
 
 ### Test kapısı
 
@@ -661,7 +670,7 @@ Proje ancak aşağıdaki koşulların tamamı sağlandığında bitmiş kabul ed
 
 Bu maddeler ana teslim tamamlandıktan sonra değerlendirilecektir:
 
-- Dashboard sayfası ve API için gerçek kimlik doğrulama ve rol tabanlı yetki
+- Birden fazla yönetici için kullanıcı yönetimi ve rol tabanlı yetki
 - Sohbet endpoint'i için rate limiting
 - SQLite'tan PostgreSQL'e geçiş
 - Lead filtreleme, arama ve durum yönetimi

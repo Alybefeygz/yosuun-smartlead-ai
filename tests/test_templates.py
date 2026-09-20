@@ -72,8 +72,8 @@ def test_home_template_exposes_accessible_ui_contract(client):
     assert inspector.attributes_by_id["messageInput"]["type"] == "text"
 
 
-def test_dashboard_template_exposes_safe_rendering_contract(client):
-    response = client.get("/dashboard")
+def test_dashboard_template_exposes_safe_rendering_contract(authenticated_client):
+    response = authenticated_client.get("/dashboard")
     inspector = inspect(response)
 
     assert response.status_code == 200
@@ -87,15 +87,40 @@ def test_dashboard_template_exposes_safe_rendering_contract(client):
     } <= inspector.ids
 
 
-@pytest.mark.parametrize("path", ["/", "/dashboard"])
-def test_templates_use_external_module_scripts_and_no_inline_styles(client, path):
-    response = client.get(path)
+def test_home_template_uses_external_module_scripts_and_no_inline_styles(client):
+    response = client.get("/")
     inspector = inspect(response)
 
     assert inspector.inline_styles == []
     assert inspector.scripts
     assert all(script.get("src") for script in inspector.scripts)
     assert all(script.get("type") == "module" for script in inspector.scripts)
+
+
+def test_dashboard_uses_external_module_scripts_and_no_inline_styles(
+    authenticated_client,
+):
+    response = authenticated_client.get("/dashboard")
+    inspector = inspect(response)
+
+    assert inspector.inline_styles == []
+    assert inspector.scripts
+    assert all(script.get("src") for script in inspector.scripts)
+    assert all(script.get("type") == "module" for script in inspector.scripts)
+
+
+def test_login_template_matches_accessible_ui_contract(client):
+    response = client.get("/login")
+    inspector = inspect(response)
+
+    assert response.status_code == 200
+    assert {"mainContent", "loginTitle", "usernameInput", "passwordInput"} <= (
+        inspector.ids
+    )
+    assert {"usernameInput", "passwordInput"} <= inspector.labels_for
+    assert inspector.attributes_by_id["passwordInput"]["type"] == "password"
+    assert inspector.inline_styles == []
+    assert inspector.scripts == []
 
 
 @pytest.mark.parametrize(
