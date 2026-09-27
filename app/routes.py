@@ -10,9 +10,13 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from app.auth import admin_api_required, admin_page_required, get_csrf_token
 from app.database import lead_ekle, tum_leadler
 from app.services.ai_service import AIServiceError, ai_service
+from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
-main = Blueprint("main", __name__)
+# Page rendering and JSON APIs have separate routing boundaries.  The API
+# prefix is applied in create_app(), so this module only declares local paths.
+pages = Blueprint("pages", __name__)
+api = Blueprint("api", __name__)
 
 NAME_MAX_LENGTH = 100
 PHONE_MAX_LENGTH = 50
@@ -24,6 +28,21 @@ ALLOWED_HISTORY_ROLES = frozenset({"user", "assistant"})
 
 class RequestValidationError(ValueError):
     """Raised when an HTTP request violates the public API contract."""
+
+
+def init_chat_rate_limit(app) -> None:
+    """Attach process-local abuse protection for the public chat endpoint."""
+
+    app.extensions["yosuun_chat_limiter"] = SlidingWindowRateLimiter(
+        max_requests=app.config["CHAT_RATE_LIMIT_REQUESTS"],
+        window_seconds=app.config["CHAT_RATE_LIMIT_WINDOW_SECONDS"],
+    )
+
+
+def _chat_retry_after() -> int:
+    limiter = current_app.extensions["yosuun_chat_limiter"]
+    client_key = request.remote_addr or "unknown"
+    return limiter.acquire(client_key)
 
 
 def _error_response(
@@ -134,14 +153,14 @@ def _validated_history(value: Any) -> List[Dict[str, str]]:
     return history
 
 
-@main.get("/")
+@pages.get("/")
 def index() -> str:
     """Render the backend fallback landing page."""
 
     return render_template("index.html")
 
 
-@main.get("/dashboard")
+@pages.get("/dashboard")
 @admin_page_required
 def dashboard() -> str:
     """Render the backend fallback dashboard page."""
@@ -149,9 +168,19 @@ def dashboard() -> str:
     return render_template("dashboard.html", csrf_token=get_csrf_token())
 
 
-@main.post("/api/sohbet")
+@api.post("/sohbet")
 def sohbet() -> Tuple[Response, int]:
     """Validate a visitor message and delegate response generation to AIService."""
+
+    retry_after = _chat_retry_after()
+    if retry_after:
+        response, status_code = _error_response(
+            "RATE_LIMITED",
+            "Çok fazla sohbet isteği gönderildi. Lütfen kısa süre sonra tekrar deneyin.",
+            429,
+        )
+        response.headers["Retry-After"] = str(retry_after)
+        return response, status_code
 
     try:
         payload = _json_object()
@@ -183,7 +212,7 @@ def sohbet() -> Tuple[Response, int]:
     return jsonify({"basari": True, "cevap": answer}), 200
 
 
-@main.post("/api/leads")
+@api.post("/leads")
 def lead_olustur() -> Tuple[Response, int]:
     """Validate and persist one visitor lead."""
 
@@ -225,7 +254,7 @@ def lead_olustur() -> Tuple[Response, int]:
     )
 
 
-@main.get("/api/leads")
+@api.get("/leads")
 @admin_api_required
 def leadleri_listele() -> Tuple[Response, int]:
     """Return all leads newest-first."""

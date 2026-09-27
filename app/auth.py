@@ -206,7 +206,7 @@ def login() -> Union[Response, Tuple[str, int]]:
     """Authenticate the configured administrator without exposing credentials."""
 
     if _is_admin_authenticated():
-        return redirect(url_for("main.dashboard"))
+        return redirect(url_for("pages.dashboard"))
     if request.method == "GET":
         return _render_login()
 
@@ -271,7 +271,7 @@ def login() -> Union[Response, Tuple[str, int]]:
     session.permanent = True
     get_csrf_token()
     current_app.logger.info("Yönetici oturumu açıldı.")
-    return redirect(url_for("main.dashboard"), code=303)
+    return redirect(url_for("pages.dashboard"), code=303)
 
 
 @auth.post("/logout")

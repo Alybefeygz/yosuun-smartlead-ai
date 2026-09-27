@@ -29,11 +29,13 @@ def create_app(
     # Imports stay inside the composition root to keep package imports acyclic.
     from app.auth import init_auth
     from app.database import init_db
-    from app.routes import main
+    from app.routes import api, init_chat_rate_limit, pages
 
     init_db(app)
     init_auth(app)
-    app.register_blueprint(main)
+    init_chat_rate_limit(app)
+    app.register_blueprint(pages)
+    app.register_blueprint(api, url_prefix="/api")
 
     @app.get("/health")
     def health() -> tuple[Response, int]:

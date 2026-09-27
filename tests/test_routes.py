@@ -6,6 +6,7 @@ import pytest
 
 import app.routes as routes_module
 from app.services.ai_service import AIServiceError
+from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
 def assert_validation_error(response):
@@ -19,6 +20,21 @@ def test_health_is_lightweight_and_active(client):
 
     assert response.status_code == 200
     assert response.get_json() == {"basari": True, "durum": "aktif"}
+
+
+def test_page_and_api_routes_use_separate_blueprints(app):
+    """Keep the assignment's page/API separation explicit and testable."""
+
+    assert {"pages", "api"} <= app.blueprints.keys()
+    endpoints_by_path = {
+        rule.rule: rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.rule in {"/", "/dashboard", "/api/sohbet", "/api/leads"}
+    }
+    assert endpoints_by_path["/"].startswith("pages.")
+    assert endpoints_by_path["/dashboard"].startswith("pages.")
+    assert endpoints_by_path["/api/sohbet"].startswith("api.")
+    assert endpoints_by_path["/api/leads"].startswith("api.")
 
 
 @pytest.mark.parametrize("path", ["/"])
@@ -62,6 +78,26 @@ def test_chat_success_validates_and_delegates(client, monkeypatch):
             {"role": "assistant", "content": "Eski cevap"},
         ],
     }
+
+
+def test_chat_rate_limit_returns_retry_after(app, client, monkeypatch):
+    monkeypatch.setattr(
+        routes_module.ai_service,
+        "yanit_uret",
+        lambda *_args, **_kwargs: "Yosuun cevabı",
+    )
+    app.extensions["yosuun_chat_limiter"] = SlidingWindowRateLimiter(
+        max_requests=1,
+        window_seconds=60,
+    )
+
+    first = client.post("/api/sohbet", json={"mesaj": "Merhaba"})
+    second = client.post("/api/sohbet", json={"mesaj": "Tekrar merhaba"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.get_json()["hata"]["kod"] == "RATE_LIMITED"
+    assert int(second.headers["Retry-After"]) >= 1
 
 
 @pytest.mark.parametrize(

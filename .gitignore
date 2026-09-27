@@ -27,3 +27,10 @@ instance/
 
 # Local high-resolution source artwork
 /logo.png
+
+# Local planning, presentation and archive documents
+/plan.md
+/project_documents.md
+/SUNUM.md
+/TESLIM_KONTROL_LISTESI.md
+/knowledge/yosuun.md
