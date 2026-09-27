@@ -22,6 +22,21 @@ def test_health_is_lightweight_and_active(client):
     assert response.get_json() == {"basari": True, "durum": "aktif"}
 
 
+def test_page_and_api_routes_use_separate_blueprints(app):
+    """Keep the assignment's page/API separation explicit and testable."""
+
+    assert {"pages", "api"} <= app.blueprints.keys()
+    endpoints_by_path = {
+        rule.rule: rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.rule in {"/", "/dashboard", "/api/sohbet", "/api/leads"}
+    }
+    assert endpoints_by_path["/"].startswith("pages.")
+    assert endpoints_by_path["/dashboard"].startswith("pages.")
+    assert endpoints_by_path["/api/sohbet"].startswith("api.")
+    assert endpoints_by_path["/api/leads"].startswith("api.")
+
+
 @pytest.mark.parametrize("path", ["/"])
 def test_fallback_html_pages_render(client, path):
     response = client.get(path)

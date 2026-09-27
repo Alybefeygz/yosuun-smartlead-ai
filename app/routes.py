@@ -13,7 +13,10 @@ from app.services.ai_service import AIServiceError, ai_service
 from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
-main = Blueprint("main", __name__)
+# Page rendering and JSON APIs have separate routing boundaries.  The API
+# prefix is applied in create_app(), so this module only declares local paths.
+pages = Blueprint("pages", __name__)
+api = Blueprint("api", __name__)
 
 NAME_MAX_LENGTH = 100
 PHONE_MAX_LENGTH = 50
@@ -150,14 +153,14 @@ def _validated_history(value: Any) -> List[Dict[str, str]]:
     return history
 
 
-@main.get("/")
+@pages.get("/")
 def index() -> str:
     """Render the backend fallback landing page."""
 
     return render_template("index.html")
 
 
-@main.get("/dashboard")
+@pages.get("/dashboard")
 @admin_page_required
 def dashboard() -> str:
     """Render the backend fallback dashboard page."""
@@ -165,7 +168,7 @@ def dashboard() -> str:
     return render_template("dashboard.html", csrf_token=get_csrf_token())
 
 
-@main.post("/api/sohbet")
+@api.post("/sohbet")
 def sohbet() -> Tuple[Response, int]:
     """Validate a visitor message and delegate response generation to AIService."""
 
@@ -209,7 +212,7 @@ def sohbet() -> Tuple[Response, int]:
     return jsonify({"basari": True, "cevap": answer}), 200
 
 
-@main.post("/api/leads")
+@api.post("/leads")
 def lead_olustur() -> Tuple[Response, int]:
     """Validate and persist one visitor lead."""
 
@@ -251,7 +254,7 @@ def lead_olustur() -> Tuple[Response, int]:
     )
 
 
-@main.get("/api/leads")
+@api.get("/leads")
 @admin_api_required
 def leadleri_listele() -> Tuple[Response, int]:
     """Return all leads newest-first."""

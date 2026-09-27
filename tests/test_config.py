@@ -24,9 +24,7 @@ def test_development_app_uses_expected_safe_defaults(tmp_path):
     assert app.config["AI_HISTORY_MAX_CHARS"] == 8000
     assert app.config["AI_TEMPERATURE"] == 0.3
     assert app.config["AI_MAX_COMPLETION_TOKENS"] == 500
-    assert app.config["AI_KNOWLEDGE_MAX_SECTIONS"] == 4
-    assert app.config["AI_KNOWLEDGE_MAX_CHARS"] == 7000
-    assert app.config["KNOWLEDGE_BASE_PATH"].endswith("knowledge/yosuun.md")
+    assert app.config["KNOWLEDGE_BASE_PATH"].endswith("knowledge/yosuun_mvp.md")
     assert app.config["CHAT_RATE_LIMIT_REQUESTS"] == 10
     assert app.config["MAX_CONTENT_LENGTH"] == 65536
 

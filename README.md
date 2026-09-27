@@ -1,39 +1,136 @@
+<div align="center">
+
+<img src="app/static/images/logo.png" alt="Yosuun logosu" width="96">
+
 # Yosuun SmartLead AI
+
+**Yapay zekâ destekli ziyaretçi asistanı ve lead yönetim paneli**
+
+*"Sen hayatını yaşa, e-ticareti Yosuun halletsin."*
+
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-veri%20katmanı-003B57?logo=sqlite&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-openai%2Fgpt--oss--20b-F55036)
+![Tests](https://img.shields.io/badge/testler-112%20geçti-7CF56A)
+![Render](https://img.shields.io/badge/deploy-Render-46E3B7?logo=render&logoColor=white)
+
+[Canlı demo](https://yosuun-smartlead-ai.onrender.com) ·
+[Ekran görüntüleri](#-ekran-görüntüleri) ·
+[Kurulum](#-yerel-kurulum) ·
+[API](#-api) ·
+[Güvenlik](#-güvenlik-kararları)
+
+</div>
+
+---
+
+![Yosuun SmartLead AI ana sayfa](docs/screenshots/01-ana-sayfa.png)
+
+## 📌 Proje hakkında
 
 Yosuun SmartLead AI; ziyaretçilerin Yosuun hakkında yapay zekâ destekli yanıtlar almasını, iletişim talebi bırakmasını ve bu taleplerin tek bir yönetim ekranında görüntülenmesini sağlayan Flask tabanlı bir MVP'dir.
 
 Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik dosyaları sunar hem de sohbet/lead API'lerini sağlar. Groq anahtarı tanımlanmadığında sohbet güvenli bir demo cevabı döndürür.
 
-## Özellikler
+| Kullanıcı | Ne yapar? | Nerede? |
+|---|---|---|
+| **Ziyaretçi (B2C)** | Yosuun AI Asistan'a soru sorar, iletişim bilgisini bırakır | `/` |
+| **Yönetici (B2B)** | Güvenli giriş yapar, gelen lead'leri listeler | `/login`, `/dashboard` |
 
-- Küratörlü bilgi kaynağına dayanan Türkçe Yosuun AI asistanı
-- Soruya göre ilgili bilgi bölümlerini seçen yerel retrieval katmanı
-- Ayrı niyet sınıflandırıcısı ve düşük/orta/yüksek retrieval güven skoru
-- Mevcut özellik, ürün vizyonu, tarihsel çalışma ve bilinmeyen bilgi ayrımı
-- Model cevabını kullanıcıya dönmeden denetleyen kanıt-statüsü koruması
-- Kontrollü cevap üretimi ve sınırlı sohbet geçmişi
+## 📑 İçindekiler
+
+- [Ekran görüntüleri](#-ekran-görüntüleri)
+- [Özellikler](#-özellikler)
+- [Teknoloji yığını](#-teknoloji-yığını)
+- [Mimari](#-mimari)
+- [Yerel kurulum](#-yerel-kurulum)
+- [Environment değişkenleri](#-environment-değişkenleri)
+- [API](#-api)
+- [Testler](#-testler)
+- [Render deployment](#-render-deployment)
+- [Güvenlik kararları](#-güvenlik-kararları)
+- [AI bilgi kaynağını güncelleme](#-ai-bilgi-kaynağını-güncelleme)
+- [Bilinen sınırlamalar](#-bilinen-sınırlamalar)
+
+## 📸 Ekran görüntüleri
+
+### 1. Yosuun AI Asistan ile sohbet
+
+Ziyaretçi, ürün, stok, rakip ve operasyon süreçleriyle ilgili sorusunu yazar. Mesaj `/api/sohbet` endpoint'ine gider; backend, bilgi dokümanının tamamını ve sınırlı sohbet geçmişini Groq'a göndererek cevabı üretir. Asistan önceki mesajları hatırlayarak takip sorularına da yanıt verir.
+
+![AI asistan ile çok adımlı sohbet](docs/screenshots/02-ai-sohbet.png)
+
+### 2. İletişim talebi (lead) oluşturma
+
+Alttaki ok ve nokta kontrolleriyle iletişim ekranına geçilir. Ad soyad ve telefon zorunlu, mesaj isteğe bağlıdır. Kayıt başarılı olduğunda ziyaretçiye onay mesajı gösterilir.
+
+![İletişim formu ve başarı mesajı](docs/screenshots/03-iletisim-formu.png)
+
+### 3. Yönetici girişi
+
+Yönetim paneli yalnızca yetkili hesaba açıktır. Parola PBKDF2 hash'i ile doğrulanır; form CSRF token'ı ile korunur ve tekrarlanan hatalı denemeler geçici olarak sınırlandırılır.
+
+![Yönetici giriş ekranı](docs/screenshots/04-yonetici-girisi.png)
+
+### 4. Lead yönetim paneli
+
+Web sitesinden gelen tüm iletişim talepleri en yeniden eskiye listelenir. Her satırda isim, tıklanabilir telefon bağlantısı, mesaj ve tarih yer alır; **Yenile** butonu listeyi sayfa yenilemeden günceller.
+
+![Lead yönetim paneli](docs/screenshots/05-yonetim-paneli.png)
+
+### 5. Mobil görünüm
+
+Arayüz responsive tasarlanmıştır; sohbet ve form ekranları telefon boyutunda da tek sütunda rahatça kullanılır.
+
+<p align="center">
+  <img src="docs/screenshots/06-mobil.png" alt="Mobil görünüm" width="320">
+</p>
+
+> Ekran görüntüleri yerel ortamda, geçici bir SQLite veritabanı ve örnek (gerçek olmayan) lead kayıtlarıyla alınmıştır.
+
+## ✨ Özellikler
+
+**Yapay zekâ asistanı**
+- Küratörlü bilgi dokümanına dayanan Türkçe Yosuun AI asistanı
+- Bilgi dokümanını parçalamadan modele veren basit RAG akışı
+- Niyet sınıflandırması veya retrieval puanlaması olmadan doğrudan AI cevabı
+- Hazır FAQ cevabı kullanmadan her normal soruda AI üretimi
+- Sınırlı ve doğrulanmış sohbet geçmişi
+- Groq anahtarı yoksa çökmeyen demo modu
+
+**Lead yönetimi**
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
 - Lead'leri en yeniden eskiye sıralayan responsive dashboard
+- SQLite veri katmanı ve parametrik sorgular
+
+**Güvenlik ve kalite**
 - Parola hash'i, CSRF ve oturum korumalı tek-admin yönetici girişi
 - Aynı-origin, göreli `/api/*` istekleri
-- SQLite veri katmanı ve parametrik sorgular
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- Hazır FAQ cevabı kullanmadan her normal soruda AI üretimi
-- 100 soruluk dengeli AI yönlendirme değerlendirme seti
-- 189 otomatik test
+- 112 otomatik test
 
-## Teknoloji yığını
+## 🧰 Teknoloji yığını
 
-- Python 3.9+
-- Flask ve Jinja
-- SQLite
-- Vanilla JavaScript ve CSS
-- Groq Chat Completions API
-- Gunicorn
-- Pytest
+| Katman | Teknoloji |
+|---|---|
+| Backend | Python 3.9+, Flask, Jinja |
+| Veritabanı | SQLite |
+| Frontend | Vanilla JavaScript (ES modules), CSS |
+| Yapay zekâ | Groq Chat Completions API (`openai/gpt-oss-20b`) |
+| Sunucu | Gunicorn |
+| Test | Pytest |
+| Yayın | Render |
 
-## Mimari
+### Öğrenci yönergesine uyarlamalar
+
+Proje, SmartLead AI öğrenci yönergesinin backend mimarisini korur. Teslimde yanlış anlaşılmayı önlemek için iki bilinçli uyarlama yapılmıştır:
+
+- Wix/Velo yerine B2C ve B2B arayüzleri Flask/Jinja, vanilla JavaScript ve CSS ile aynı uygulamada geliştirilmiştir. Bu nedenle frontend istekleri aynı-origin `/api/*` yollarını kullanır ve CORS açılmaz.
+- Yönergedeki `llama-3.1-8b-instant` modeli Groq tarafından 16 Ağustos 2026'da developer/free kullanım için kapatıldığından Groq'un önerdiği `openai/gpt-oss-20b` kullanılır. Ayrıntı: [Groq model deprecation](https://console.groq.com/docs/deprecations).
+
+## 🏗️ Mimari
 
 ```text
 Browser
@@ -42,33 +139,67 @@ Browser
   ├── /dashboard   -> Korumalı B2B lead listesi
   └── /api/*       -> Flask route katmanı
                          ├── AIService
-                         │    ├── IntentClassifier -> niyet ve CTA kararı
-                         │    ├── KnowledgeService -> knowledge/yosuun.md
-                         │    ├── Groq
-                         │    └── AnswerGuard -> düzeltme veya güvenli fallback
+                         │    ├── KnowledgeService -> dokümanın tamamı
+                         │    └── Groq -> tek AI cevabı
                          └── database  -> SQLite
 ```
 
-Başlıca dosya sorumlulukları:
+Sayfa rotaları `pages`, JSON rotaları `api` Blueprint'i altında tutulur; `/api` öneki application factory tarafından kaydedilir.
+
+### Sohbet isteğinin yolculuğu
+
+```text
+Ziyaretçi mesajı
+  → home.js / api-client.js   (POST /api/sohbet)
+  → routes.py                 (JSON doğrulama, hız sınırı)
+  → ai_service.py             (sistem prompt'u + bilgi dokümanı + geçmiş)
+  → Groq API                  (cevap üretimi)
+  → routes.py                 ({"basari": true, "cevap": "..."})
+  → home.js                   (textContent ile güvenli render)
+```
+
+### Dosya sorumlulukları
 
 | Dosya | Sorumluluk |
 |---|---|
 | `app/__init__.py` | Application factory, health endpoint'i ve ortak hata yönetimi |
 | `app/auth.py` | Yönetici girişi, session, CSRF ve deneme sınırı |
-| `app/routes.py` | HTTP parse, doğrulama, servis çağrısı ve response mapping |
+| `app/routes.py` | Ayrı `pages`/`api` Blueprint'leri, HTTP doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
-| `app/services/ai_service.py` | Prompt oluşturma, Groq çağrısı ve demo modu |
-| `app/services/intent_classifier.py` | Soru niyeti, fiyat bağlamı ve CTA izni |
-| `app/services/answer_guard.py` | Üretilen cevabı kanıt statüsüne göre denetleme ve güvenli fallback |
-| `app/services/knowledge_service.py` | Markdown bilgi kaynağını bölümleme ve ilgili bağlamı seçme |
+| `app/services/ai_service.py` | Tam bilgi dokümanıyla prompt oluşturma, Groq çağrısı ve demo modu |
+| `app/services/knowledge_service.py` | Markdown bilgi dokümanını tek parça okuyup bellekte tutma |
 | `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
-| `knowledge/yosuun.md` | AI'nin kullandığı küratörlü Yosuun bilgi kaynağı |
+| `knowledge/yosuun_mvp.md` | AI'nin her istekte tamamını kullandığı kısa bilgi dokümanı |
 | `app/static/js/api-client.js` | Frontend HTTP sözleşmesi |
 | `app/static/js/home.js` | Sohbet, slider ve lead formu davranışları |
 | `app/static/js/dashboard.js` | Lead listesinin güvenli DOM render işlemleri |
 | `config.py` | Environment tabanlı tek yapılandırma kaynağı |
 
-## Yerel kurulum
+### Klasör yapısı
+
+```text
+yosuun-smartlead-ai/
+├── app/
+│   ├── __init__.py          # create_app()
+│   ├── auth.py
+│   ├── database.py
+│   ├── routes.py
+│   ├── services/
+│   │   ├── ai_service.py
+│   │   ├── knowledge_service.py
+│   │   └── rate_limiter.py
+│   ├── static/              # css/, js/, images/
+│   └── templates/           # index.html, login.html, dashboard.html
+├── knowledge/
+│   └── yosuun_mvp.md        # AI bilgi kaynağı
+├── docs/screenshots/        # README görselleri
+├── tests/
+├── config.py
+├── run.py
+└── requirements.txt
+```
+
+## 🚀 Yerel kurulum
 
 ```bash
 git clone https://github.com/Alybefeygz/yosuun-smartlead-ai.git
@@ -83,10 +214,12 @@ python run.py
 
 Uygulama varsayılan olarak `http://127.0.0.1:5000` adresinde açılır:
 
-- Ziyaretçi arayüzü: `http://127.0.0.1:5000/`
-- Yönetim ekranı: `http://127.0.0.1:5000/dashboard`
-- Yönetici girişi: `http://127.0.0.1:5000/login`
-- Sağlık kontrolü: `http://127.0.0.1:5000/health`
+| Sayfa | Adres |
+|---|---|
+| Ziyaretçi arayüzü | `http://127.0.0.1:5000/` |
+| Yönetici girişi | `http://127.0.0.1:5000/login` |
+| Yönetim ekranı | `http://127.0.0.1:5000/dashboard` |
+| Sağlık kontrolü | `http://127.0.0.1:5000/health` |
 
 Gerçek AI yanıtları için `.env` dosyasındaki `GROQ_API_KEY` değerini doldurun. Bu dosya Git tarafından yok sayılır; gerçek anahtarları hiçbir zaman commit etmeyin.
 
@@ -96,7 +229,7 @@ Yönetici parolasını düz metin olarak kaydetmeyin. Güçlü bir PBKDF2 hash'i
 python -c "from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass('Yönetici parolası: '), method='pbkdf2:sha256:600000'))"
 ```
 
-## Environment değişkenleri
+## ⚙️ Environment değişkenleri
 
 | Değişken | Gerekli | Varsayılan / açıklama |
 |---|---:|---|
@@ -113,17 +246,22 @@ python -c "from getpass import getpass; from werkzeug.security import generate_p
 | `AI_HISTORY_MAX_CHARS` | Hayır | `8000` |
 | `AI_TEMPERATURE` | Hayır | `0.3`; daha tutarlı kurumsal cevaplar |
 | `AI_MAX_COMPLETION_TOKENS` | Hayır | `500` |
-| `AI_KNOWLEDGE_MAX_SECTIONS` | Hayır | Her soruda en fazla `4` bilgi bölümü |
-| `AI_KNOWLEDGE_MAX_CHARS` | Hayır | Bilgi bağlamı için `7000` karakter |
-| `KNOWLEDGE_BASE_PATH` | Hayır | `knowledge/yosuun.md` |
+| `KNOWLEDGE_BASE_PATH` | Hayır | `knowledge/yosuun_mvp.md` |
 | `CHAT_RATE_LIMIT_REQUESTS` | Hayır | Pencere başına `10` sohbet isteği |
 | `CHAT_RATE_LIMIT_WINDOW_SECONDS` | Hayır | `60` saniye |
 | `MAX_CONTENT_LENGTH` | Hayır | `65536` byte |
 | `BUSINESS_CONTEXT` | Hayır | Uygulamadaki varsayılan Yosuun sistem bağlamı |
 
-## API
+## 🔌 API
 
 Tüm API cevapları `basari` alanını içerir.
+
+| Metot | Yol | Yetki | Açıklama |
+|---|---|---|---|
+| `POST` | `/api/sohbet` | Herkese açık (hız sınırlı) | AI asistandan cevap alır |
+| `POST` | `/api/leads` | Herkese açık | Yeni iletişim talebi oluşturur |
+| `GET` | `/api/leads` | Yönetici oturumu | Lead listesini döndürür |
+| `GET` | `/health` | Herkese açık | Servis sağlık kontrolü |
 
 ### Sohbet
 
@@ -145,9 +283,7 @@ Başarılı cevap:
 {"basari": true, "cevap": "..."}
 ```
 
-`cevap` alanı boşluklar ve noktalama işaretleri dâhil en fazla 250 karakterdir.
-Uzun model çıktıları bir kez yeniden yazdırılır; sınır tekrar aşılırsa
-kanıt statüsüne uygun kısa ve deterministik fallback kullanılır.
+Kullanıcı mesajı, sınırlı sohbet geçmişi ve `knowledge/yosuun_mvp.md` dokümanının tamamı Groq'a gönderilir. Nihai `cevap` doğrudan AI tarafından üretilir.
 
 ### Lead oluşturma
 
@@ -188,6 +324,8 @@ Bu endpoint geçerli bir yönetici session cookie'si gerektirir. Anonim istekler
 }
 ```
 
+### Hata zarfı
+
 Hata cevapları ortak bir zarf kullanır:
 
 ```json
@@ -197,11 +335,23 @@ Hata cevapları ortak bir zarf kullanır:
 }
 ```
 
-## Testler
+## 🧪 Testler
 
 ```bash
 python -m pytest -q
 ```
+
+Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama, yapılandırma ve arayüz şablonlarını denetleyen **112 otomatik test** içerir.
+
+| Test dosyası | Kapsam |
+|---|---|
+| `tests/test_database.py` | SQLite sorguları ve veri katmanı |
+| `tests/test_routes.py` | API sözleşmesi, doğrulama ve hata cevapları |
+| `tests/test_ai_service.py` | Prompt oluşturma, Groq çağrısı, hata normalizasyonu, demo modu |
+| `tests/test_knowledge_service.py` | Bilgi dokümanının okunması |
+| `tests/test_auth.py` | Giriş, oturum, CSRF ve deneme sınırı |
+| `tests/test_config.py` | Environment tabanlı yapılandırma |
+| `tests/test_templates.py` | Arayüz şablonu sözleşmeleri |
 
 Belirli bir katmanı çalıştırmak için örnek:
 
@@ -209,7 +359,7 @@ Belirli bir katmanı çalıştırmak için örnek:
 python -m pytest -q tests/test_database.py
 ```
 
-## Render deployment
+## ☁️ Render deployment
 
 1. Bu repoyu Render'da yeni bir Web Service'e bağlayın.
 2. Build command olarak `pip install -r requirements.txt` kullanın.
@@ -227,15 +377,15 @@ AI_PROVIDER=groq
 GROQ_MODEL=openai/gpt-oss-20b
 AI_TEMPERATURE=0.3
 AI_MAX_COMPLETION_TOKENS=500
-KNOWLEDGE_BASE_PATH=knowledge/yosuun.md
+KNOWLEDGE_BASE_PATH=knowledge/yosuun_mvp.md
 CHAT_RATE_LIMIT_REQUESTS=10
 CHAT_RATE_LIMIT_WINDOW_SECONDS=60
 DATABASE_URL=<kalici-disk-uzerindeki-sqlite-yolu>
 ```
 
-SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_URL` mutlaka Render persistent disk üzerindeki bir yolu göstermelidir. Persistent disk kullanılmayan ortamlarda lead verileri ephemeral olabilir.
+> ⚠️ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_URL` mutlaka Render persistent disk üzerindeki bir yolu göstermelidir. Persistent disk kullanılmayan ortamlarda lead verileri ephemeral olabilir.
 
-## Güvenlik kararları
+## 🔒 Güvenlik kararları
 
 - `.env`, SQLite runtime dosyaları, sanal ortamlar ve cache çıktıları repoya alınmaz.
 - SQL yalnızca `app/database.py` içinde ve `?` placeholder'larıyla çalışır.
@@ -248,43 +398,31 @@ SQLite dosyasının deploy/restart sonrasında korunması gerekiyorsa `DATABASE_
 - CSP, clickjacking, MIME-sniffing, referrer ve HSTS güvenlik başlıkları uygulanır.
 - Frontend kullanıcı verisini `textContent` ile render eder; `innerHTML` kullanmaz.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
-- AI yalnızca soruyla ilgili küratörlü bilgi bölümlerini alır; authoring/system prompt bölümleri retrieval dışında tutulur.
-- Her bilgi bölümü `doğrulanmış`, `ürün vizyonu`, `tarihsel`, `bilinmiyor`, `atfedilmiş iddia`, `politika` veya `pilot` statüsü taşır.
-- Modelin statü sınırını aşan cevabı bir kez düzeltilir; tekrar başarısız olursa konuya özel güvenli cevap kullanılır.
-- Kullanıcıya dönen AI cevabı en fazla 250 karakterdir; yarım cümle kesmek yerine düzeltme veya güvenli fallback uygulanır.
-- Rakip/ürün fiyatı soruları abonelik fiyatlandırmasından bağlamsal olarak ayrılır.
-- Retrieval sonucu skorlanır ve modele `low`, `medium` veya `high` güven sözleşmesi verilir.
-- FAQ eşleşmeleri hazır cevap döndürmez; bilgi bağlamı seçildikten sonra nihai cevabı her zaman AI üretir.
-- CTA yalnız demo/iletişim, entegrasyon ve abonelik fiyatlandırması niyetlerinde kullanılabilir.
-- Groq `429`, `5xx`, timeout, ağ hatası, boş veya kesilmiş içerik döndürürse teknik hata yerine mevcut kanıt statüsüne uygun, 250 karakter altı fallback verilir.
-- `tests/fixtures/ai_evaluation_cases.json` içindeki 100 soru niyet, kanıt statüsü, retrieval bölümü ve CTA kararını doğrular.
+- Bilgi dokümanının tamamı yalnızca backend tarafından okunur ve Groq sistem mesajına eklenir.
+- Sistem prompt'u bilgi dokümanı içindeki talimat benzeri metinlerin yeni komut olarak yorumlanmamasını söyler.
+- Groq timeout, ağ, HTTP, boş veya bozuk cevap hataları `AIServiceError` olarak normalize edilir ve API'den güvenli `503` cevabı döner.
 - Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
 - Production hata cevapları traceback veya secret içermez.
 
-## Bilinen sınırlamalar
+## 📚 AI bilgi kaynağını güncelleme
 
-- Kimlik doğrulama tek yönetici hesabına yöneliktir; kullanıcı yönetimi ve parola sıfırlama akışı yoktur.
-- Login deneme sınırı process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
-- Sohbet hız sınırı process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
-- SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
-- Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
+AI cevaplarının çalışma kaynağı `knowledge/yosuun_mvp.md` dosyasıdır. Ürün, fiyat, entegrasyon veya iletişim bilgisi değiştiğinde bu dosyadaki ilgili bölüm ve `last_updated` alanı birlikte güncellenmelidir. Bilgi kaynağı secret, müşteri verisi veya yayınlanması istenmeyen kişisel veri içermemelidir.
 
-## AI bilgi kaynağını güncelleme
-
-AI cevaplarının temel kaynağı `knowledge/yosuun.md` dosyasıdır. Ürün, fiyat,
-entegrasyon veya iletişim bilgisi değiştiğinde bu dosyadaki ilgili bölüm ve
-`last_updated` alanı birlikte güncellenmelidir. Bilgi kaynağı secret, müşteri
-verisi veya yayınlanması istenmeyen kişisel veri içermemelidir.
-
-Her değişiklikten sonra kalite ve retrieval testlerini çalıştırın:
+Her değişiklikten sonra bilgi kaynağı ve AI servis testlerini çalıştırın:
 
 ```bash
-python -m pytest -q tests/test_intent_classifier.py tests/test_knowledge_service.py tests/test_ai_evaluation.py tests/test_ai_service.py
+python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
 ```
 
-## Bağlantılar
+## 🚧 Bilinen sınırlamalar
+
+- Kimlik doğrulama tek yönetici hesabına yöneliktir; kullanıcı yönetimi ve parola sıfırlama akışı yoktur.
+- Login ve sohbet hız sınırları process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
+- SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
+- Bilgi dokümanının tamamı her AI isteğine eklendiği için dosyanın Groq token limitinin altında tutulması gerekir. Doküman ciddi ölçüde büyürse daha sonra chunking veya vektör arama eklenebilir.
+- Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
+
+## 🔗 Bağlantılar
 
 - GitHub: <https://github.com/Alybefeygz/yosuun-smartlead-ai>
 - Canlı demo: <https://yosuun-smartlead-ai.onrender.com>
-
-Ayrıntılı uygulama fazları için [`plan.md`](plan.md), teknik sözleşme için [`project_documents.md`](project_documents.md) dosyasına bakın.

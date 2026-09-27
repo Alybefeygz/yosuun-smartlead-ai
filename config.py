@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATABASE_PATH = BASE_DIR / "instance" / "yosuun.sqlite3"
-DEFAULT_KNOWLEDGE_BASE_PATH = BASE_DIR / "knowledge" / "yosuun.md"
+DEFAULT_KNOWLEDGE_BASE_PATH = BASE_DIR / "knowledge" / "yosuun_mvp.md"
 
 # Loading a local .env here keeps every environment lookup in one boundary.
 # Production values are supplied directly by Render environment variables.
@@ -68,14 +68,6 @@ class Config:
     AI_MAX_COMPLETION_TOKENS = _parse_positive_int(
         os.getenv("AI_MAX_COMPLETION_TOKENS", "500"),
         default=500,
-    )
-    AI_KNOWLEDGE_MAX_SECTIONS = _parse_positive_int(
-        os.getenv("AI_KNOWLEDGE_MAX_SECTIONS", "4"),
-        default=4,
-    )
-    AI_KNOWLEDGE_MAX_CHARS = _parse_positive_int(
-        os.getenv("AI_KNOWLEDGE_MAX_CHARS", "7000"),
-        default=7000,
     )
     KNOWLEDGE_BASE_PATH = os.getenv(
         "KNOWLEDGE_BASE_PATH",
