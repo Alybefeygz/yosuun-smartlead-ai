@@ -25,10 +25,18 @@ from flask import (
     session,
     url_for,
 )
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash
 
 
 auth = Blueprint("auth", __name__)
+
+# Separates admin API tokens from any other value signed with SECRET_KEY.
+ADMIN_TOKEN_SALT = "yosuun-admin-token"
+
+CREDENTIALS_OK = "ok"
+CREDENTIALS_INVALID = "invalid"
+CREDENTIALS_UNAVAILABLE = "unavailable"
 
 
 class LoginAttemptLimiter:
@@ -142,6 +150,42 @@ def _is_admin_authenticated() -> bool:
     )
 
 
+def _token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(current_app.secret_key, salt=ADMIN_TOKEN_SALT)
+
+
+def _token_max_age_seconds() -> int:
+    return int(current_app.permanent_session_lifetime.total_seconds())
+
+
+def _has_valid_bearer_token() -> bool:
+    """Accept a signed, unexpired token bound to the current admin credentials."""
+
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        return False
+
+    expected = _auth_fingerprint()
+    if expected is None:
+        return False
+
+    try:
+        payload = _token_serializer().loads(token, max_age=_token_max_age_seconds())
+    except BadSignature:
+        return False
+
+    actual = payload.get("fp") if isinstance(payload, dict) else None
+    return isinstance(actual, str) and compare_digest(actual, expected)
+
+
+def _json_error(code: str, message: str, status_code: int) -> Tuple[Response, int]:
+    return (
+        jsonify({"basari": False, "hata": {"kod": code, "mesaj": message}}),
+        status_code,
+    )
+
+
 def admin_page_required(view: Callable[..., Any]) -> Callable[..., Any]:
     """Redirect anonymous browser requests to the login page."""
 
@@ -156,25 +200,21 @@ def admin_page_required(view: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def admin_api_required(view: Callable[..., Any]) -> Callable[..., Any]:
-    """Return a stable JSON 401 envelope for anonymous API requests."""
+    """Return a stable JSON 401 envelope for anonymous API requests.
+
+    Browser sessions and bearer tokens (used by the Wix site) are both accepted.
+    """
 
     @wraps(view)
     def wrapped(*args: Any, **kwargs: Any):
-        if not _is_admin_authenticated():
-            session.pop("admin_fingerprint", None)
-            return (
-                jsonify(
-                    {
-                        "basari": False,
-                        "hata": {
-                            "kod": "AUTH_REQUIRED",
-                            "mesaj": "Bu işlem için yönetici girişi gereklidir.",
-                        },
-                    }
-                ),
-                401,
-            )
-        return view(*args, **kwargs)
+        if _is_admin_authenticated() or _has_valid_bearer_token():
+            return view(*args, **kwargs)
+        session.pop("admin_fingerprint", None)
+        return _json_error(
+            "AUTH_REQUIRED",
+            "Bu işlem için yönetici girişi gereklidir.",
+            401,
+        )
 
     return wrapped
 
@@ -201,6 +241,43 @@ def _render_login(
     )
 
 
+def _check_credentials(username: str, password: str) -> str:
+    """Compare submitted credentials with the configured admin in constant time."""
+
+    configured_username = current_app.config.get("ADMIN_USERNAME")
+    configured_password_hash = current_app.config.get("ADMIN_PASSWORD_HASH")
+
+    if not isinstance(configured_username, str) or not isinstance(
+        configured_password_hash,
+        str,
+    ):
+        current_app.logger.error("Yönetici kimlik bilgileri yapılandırılmamış.")
+        return CREDENTIALS_UNAVAILABLE
+
+    credentials_have_valid_shape = (
+        bool(username)
+        and len(username) <= 100
+        and bool(password)
+        and len(password) <= 256
+    )
+    username_matches = compare_digest(
+        username.encode("utf-8"),
+        configured_username.encode("utf-8"),
+    )
+    try:
+        password_matches = check_password_hash(
+            configured_password_hash,
+            password if len(password) <= 256 else "",
+        )
+    except (AttributeError, TypeError, ValueError):
+        current_app.logger.error("Yönetici parola hash'i geçersiz.")
+        password_matches = False
+
+    if credentials_have_valid_shape and username_matches and password_matches:
+        return CREDENTIALS_OK
+    return CREDENTIALS_INVALID
+
+
 @auth.route("/login", methods=["GET", "POST"])
 def login() -> Union[Response, Tuple[str, int]]:
     """Authenticate the configured administrator without exposing credentials."""
@@ -225,38 +302,13 @@ def login() -> Union[Response, Tuple[str, int]]:
         flask_response.headers["Retry-After"] = str(retry_after)
         return flask_response
 
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
-    configured_username = current_app.config.get("ADMIN_USERNAME")
-    configured_password_hash = current_app.config.get("ADMIN_PASSWORD_HASH")
-
-    if not isinstance(configured_username, str) or not isinstance(
-        configured_password_hash,
-        str,
-    ):
-        current_app.logger.error("Yönetici kimlik bilgileri yapılandırılmamış.")
+    status = _check_credentials(
+        request.form.get("username", "").strip(),
+        request.form.get("password", ""),
+    )
+    if status == CREDENTIALS_UNAVAILABLE:
         return _render_login("Yönetici girişi şu anda kullanılamıyor.", 503)
-
-    credentials_have_valid_shape = (
-        bool(username)
-        and len(username) <= 100
-        and bool(password)
-        and len(password) <= 256
-    )
-    username_matches = compare_digest(
-        username.encode("utf-8"),
-        configured_username.encode("utf-8"),
-    )
-    try:
-        password_matches = check_password_hash(
-            configured_password_hash,
-            password if len(password) <= 256 else "",
-        )
-    except (AttributeError, TypeError, ValueError):
-        current_app.logger.error("Yönetici parola hash'i geçersiz.")
-        password_matches = False
-
-    if not credentials_have_valid_shape or not username_matches or not password_matches:
+    if status == CREDENTIALS_INVALID:
         limiter.register_failure(client_key)
         current_app.logger.warning("Başarısız yönetici giriş denemesi.")
         return _render_login("Kullanıcı adı veya parola hatalı.", 401)
@@ -283,3 +335,75 @@ def logout() -> Response:
         abort(400)
     session.clear()
     return redirect(url_for("auth.login"), code=303)
+
+
+@auth.post("/api/admin/token")
+def admin_token() -> Tuple[Response, int]:
+    """Exchange admin credentials for a short-lived bearer token.
+
+    The Wix site cannot carry Flask's session cookie through its backend, so it
+    authenticates lead listing requests with this token instead. Failures share
+    the browser login limiter.
+    """
+
+    limiter = _login_limiter()
+    client_key = _client_key()
+    retry_after = limiter.retry_after(client_key)
+    if retry_after:
+        response, status_code = _json_error(
+            "RATE_LIMITED",
+            "Çok fazla başarısız deneme yapıldı. Lütfen daha sonra tekrar deneyin.",
+            429,
+        )
+        response.headers["Retry-After"] = str(retry_after)
+        return response, status_code
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return _json_error(
+            "VALIDATION_ERROR",
+            "JSON istek gövdesi bir nesne olmalıdır.",
+            400,
+        )
+
+    username = payload.get("kullanici_adi")
+    password = payload.get("parola")
+    status = _check_credentials(
+        username.strip() if isinstance(username, str) else "",
+        password if isinstance(password, str) else "",
+    )
+    if status == CREDENTIALS_UNAVAILABLE:
+        return _json_error(
+            "AUTH_UNAVAILABLE",
+            "Yönetici girişi şu anda kullanılamıyor.",
+            503,
+        )
+    if status == CREDENTIALS_INVALID:
+        limiter.register_failure(client_key)
+        current_app.logger.warning("Başarısız yönetici token denemesi.")
+        return _json_error(
+            "AUTH_FAILED",
+            "Kullanıcı adı veya parola hatalı.",
+            401,
+        )
+
+    fingerprint = _auth_fingerprint()
+    if fingerprint is None:
+        return _json_error(
+            "AUTH_UNAVAILABLE",
+            "Yönetici girişi şu anda kullanılamıyor.",
+            503,
+        )
+
+    limiter.clear(client_key)
+    current_app.logger.info("Yönetici API token'ı oluşturuldu.")
+    return (
+        jsonify(
+            {
+                "basari": True,
+                "token": _token_serializer().dumps({"fp": fingerprint}),
+                "sure_saniye": _token_max_age_seconds(),
+            }
+        ),
+        200,
+    )
