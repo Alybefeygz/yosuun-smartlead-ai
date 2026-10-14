@@ -83,7 +83,12 @@ def create_app(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        if request.path in {"/login", "/dashboard", "/api/leads"}:
+        if request.path in {
+            "/login",
+            "/dashboard",
+            "/api/leads",
+            "/api/admin/token",
+        }:
             response.headers["Cache-Control"] = "no-store"
         return response
 

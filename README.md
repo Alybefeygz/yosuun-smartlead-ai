@@ -12,7 +12,7 @@
 ![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-veri%20katmanı-003B57?logo=sqlite&logoColor=white)
 ![Groq](https://img.shields.io/badge/Groq-openai%2Fgpt--oss--20b-F55036)
-![Tests](https://img.shields.io/badge/testler-112%20geçti-7CF56A)
+![Tests](https://img.shields.io/badge/testler-124%20geçti-7CF56A)
 ![Render](https://img.shields.io/badge/deploy-Render-46E3B7?logo=render&logoColor=white)
 
 [Canlı demo](https://yosuun-smartlead-ai.onrender.com) ·
@@ -109,7 +109,7 @@ Arayüz responsive tasarlanmıştır; sohbet ve form ekranları telefon boyutund
 - Aynı-origin, göreli `/api/*` istekleri
 - Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
 - Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 112 otomatik test
+- 124 otomatik test
 
 ## 🧰 Teknoloji yığını
 
@@ -260,7 +260,8 @@ Tüm API cevapları `basari` alanını içerir.
 |---|---|---|---|
 | `POST` | `/api/sohbet` | Herkese açık (hız sınırlı) | AI asistandan cevap alır |
 | `POST` | `/api/leads` | Herkese açık | Yeni iletişim talebi oluşturur |
-| `GET` | `/api/leads` | Yönetici oturumu | Lead listesini döndürür |
+| `POST` | `/api/admin/token` | Herkese açık (giriş limiti) | Yönetici bilgileriyle kısa ömürlü token alır |
+| `GET` | `/api/leads` | Yönetici oturumu veya token | Lead listesini döndürür |
 | `GET` | `/health` | Herkese açık | Servis sağlık kontrolü |
 
 ### Sohbet
@@ -303,11 +304,29 @@ Başarılı cevap `201 Created` durum koduyla döner:
 {"basari": true, "mesaj": "İletişim bilgileriniz kaydedildi."}
 ```
 
+### Yönetici token'ı
+
+`POST /api/admin/token`
+
+Wix sitesi Flask'ın session cookie'sini taşıyamadığı için yönetici paneli bu endpoint'ten token alır.
+
+```json
+{"kullanici_adi": "admin", "parola": "..."}
+```
+
+Başarılı cevap:
+
+```json
+{"basari": true, "token": "...", "sure_saniye": 1800}
+```
+
+Token `SECRET_KEY` ile imzalanır, oturum süresi (30 dakika) kadar geçerlidir ve yönetici parolası değişince geçersiz olur. Hatalı denemeler `/login` ile aynı deneme limitini paylaşır (`401 AUTH_FAILED`, `429 RATE_LIMITED`).
+
 ### Lead listesi
 
 `GET /api/leads`
 
-Bu endpoint geçerli bir yönetici session cookie'si gerektirir. Anonim istekler `401 AUTH_REQUIRED` alır.
+Bu endpoint geçerli bir yönetici session cookie'si veya `Authorization: Bearer <token>` başlığı gerektirir. Anonim istekler `401 AUTH_REQUIRED` alır.
 
 ```json
 {
@@ -341,7 +360,7 @@ Hata cevapları ortak bir zarf kullanır:
 python -m pytest -q
 ```
 
-Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama, yapılandırma ve arayüz şablonlarını denetleyen **112 otomatik test** içerir.
+Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama, yapılandırma ve arayüz şablonlarını denetleyen **124 otomatik test** içerir.
 
 | Test dosyası | Kapsam |
 |---|---|
@@ -390,7 +409,7 @@ DATABASE_URL=<kalici-disk-uzerindeki-sqlite-yolu>
 - `.env`, SQLite runtime dosyaları, sanal ortamlar ve cache çıktıları repoya alınmaz.
 - SQL yalnızca `app/database.py` içinde ve `?` placeholder'larıyla çalışır.
 - Groq çağrısı ve API anahtarı yalnızca backend tarafındadır.
-- `/dashboard` ve `GET /api/leads` sunucu tarafında yönetici oturumuyla korunur.
+- `/dashboard` ve `GET /api/leads` sunucu tarafında yönetici oturumuyla korunur; `GET /api/leads` ayrıca Wix paneli için imzalı ve süreli bir bearer token kabul eder.
 - Düz parola saklanmaz; Werkzeug doğrulamalı PBKDF2 hash'i kullanılır.
 - Login ve logout formları session-bound CSRF token kullanır.
 - Production cookie'si `Secure`, `HttpOnly` ve `SameSite=Lax` olarak ayarlanır.
