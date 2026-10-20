@@ -1,7 +1,5 @@
 """Integration tests for the bearer-token admin API used by the Wix site."""
 
-from datetime import timedelta
-
 from werkzeug.security import generate_password_hash
 
 from tests.conftest import TEST_ADMIN_PASSWORD, TEST_ADMIN_USERNAME
@@ -36,7 +34,6 @@ def test_token_unlocks_lead_listing_without_session(client):
 
     assert response.status_code == 200
     assert response.get_json()["leads"][0]["isim"] == "Wix Test"
-    assert client.get("/dashboard").status_code == 302
 
 
 def test_invalid_credentials_use_generic_error_and_never_echo_password(client):
@@ -88,7 +85,7 @@ def test_token_signed_with_other_secret_is_rejected(app, client):
 
 def test_expired_token_is_rejected(app, client):
     token = request_token(client).get_json()["token"]
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(seconds=-1)
+    app.config["ADMIN_TOKEN_MAX_AGE_SECONDS"] = -1
 
     assert client.get("/api/leads", headers=bearer(token)).status_code == 401
 

@@ -9,6 +9,7 @@ from flask import Flask, Response, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app.responses import json_error
 from config import resolve_config
 
 
@@ -29,12 +30,12 @@ def create_app(
     # Imports stay inside the composition root to keep package imports acyclic.
     from app.auth import init_auth
     from app.database import init_db
-    from app.routes import api, init_chat_rate_limit, pages
+    from app.routes import api, init_chat_rate_limit, init_lead_rate_limit
 
     init_db(app)
     init_auth(app)
     init_chat_rate_limit(app)
-    app.register_blueprint(pages)
+    init_lead_rate_limit(app)
     app.register_blueprint(api, url_prefix="/api")
 
     @app.get("/health")
@@ -63,32 +64,12 @@ def create_app(
             duration_ms,
         )
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "same-origin")
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'self'; "
-            "base-uri 'self'; "
-            "connect-src 'self'; "
-            "font-src 'self'; "
-            "form-action 'self'; "
-            "frame-ancestors 'none'; "
-            "img-src 'self' data:; "
-            "object-src 'none'; "
-            "script-src 'self'; "
-            "style-src 'self'",
-        )
         if not app.debug:
             response.headers.setdefault(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        if request.path in {
-            "/login",
-            "/dashboard",
-            "/api/leads",
-            "/api/admin/token",
-        }:
+        if request.path in {"/api/leads", "/api/admin/token"}:
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -104,30 +85,15 @@ def create_app(
         else:
             error_code = "HTTP_ERROR"
             message = "API isteği işlenemedi."
-        return (
-            jsonify(
-                {
-                    "basari": False,
-                    "hata": {"kod": error_code, "mesaj": message},
-                }
-            ),
-            status_code,
-        )
+        return json_error(error_code, message, status_code)
 
     @app.errorhandler(Exception)
     def handle_unexpected_exception(error: Exception):
         app.logger.exception("Beklenmeyen uygulama hatası.", exc_info=error)
         if request.path.startswith("/api/"):
-            return (
-                jsonify(
-                    {
-                        "basari": False,
-                        "hata": {
-                            "kod": "INTERNAL_ERROR",
-                            "mesaj": "Beklenmeyen bir hata oluştu.",
-                        },
-                    }
-                ),
+            return json_error(
+                "INTERNAL_ERROR",
+                "Beklenmeyen bir hata oluştu.",
                 500,
             )
         return "Beklenmeyen bir hata oluştu.", 500

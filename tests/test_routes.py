@@ -22,30 +22,6 @@ def test_health_is_lightweight_and_active(client):
     assert response.get_json() == {"basari": True, "durum": "aktif"}
 
 
-def test_page_and_api_routes_use_separate_blueprints(app):
-    """Keep the assignment's page/API separation explicit and testable."""
-
-    assert {"pages", "api"} <= app.blueprints.keys()
-    endpoints_by_path = {
-        rule.rule: rule.endpoint
-        for rule in app.url_map.iter_rules()
-        if rule.rule in {"/", "/dashboard", "/api/sohbet", "/api/leads"}
-    }
-    assert endpoints_by_path["/"].startswith("pages.")
-    assert endpoints_by_path["/dashboard"].startswith("pages.")
-    assert endpoints_by_path["/api/sohbet"].startswith("api.")
-    assert endpoints_by_path["/api/leads"].startswith("api.")
-
-
-@pytest.mark.parametrize("path", ["/"])
-def test_fallback_html_pages_render(client, path):
-    response = client.get(path)
-
-    assert response.status_code == 200
-    assert response.content_type.startswith("text/html")
-    assert b"Yosuun" in response.data
-
-
 def test_chat_success_validates_and_delegates(client, monkeypatch):
     captured = {}
 
@@ -95,6 +71,22 @@ def test_chat_rate_limit_returns_retry_after(app, client, monkeypatch):
     second = client.post("/api/sohbet", json={"mesaj": "Tekrar merhaba"})
 
     assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.get_json()["hata"]["kod"] == "RATE_LIMITED"
+    assert int(second.headers["Retry-After"]) >= 1
+
+
+def test_lead_rate_limit_returns_retry_after(app, client):
+    app.extensions["yosuun_lead_limiter"] = SlidingWindowRateLimiter(
+        max_requests=1,
+        window_seconds=60,
+    )
+    payload = {"isim": "Ayşe", "telefon": "05551234567"}
+
+    first = client.post("/api/leads", json=payload)
+    second = client.post("/api/leads", json=payload)
+
+    assert first.status_code == 201
     assert second.status_code == 429
     assert second.get_json()["hata"]["kod"] == "RATE_LIMITED"
     assert int(second.headers["Retry-After"]) >= 1
@@ -158,8 +150,8 @@ def test_chat_maps_defensive_service_validation_to_400(client, monkeypatch):
     assert "internal validation detail" not in response.get_data(as_text=True)
 
 
-def test_valid_lead_is_created_and_returned_newest_first(authenticated_client):
-    first = authenticated_client.post(
+def test_valid_lead_is_created_and_returned_newest_first(client, admin_headers):
+    first = client.post(
         "/api/leads",
         json={
             "isim": "  Ayşe Yılmaz  ",
@@ -167,7 +159,7 @@ def test_valid_lead_is_created_and_returned_newest_first(authenticated_client):
             "mesaj": "  İlk mesaj  ",
         },
     )
-    second = authenticated_client.post(
+    second = client.post(
         "/api/leads",
         json={
             "isim": "Mehmet",
@@ -175,7 +167,7 @@ def test_valid_lead_is_created_and_returned_newest_first(authenticated_client):
             "mesaj": "",
         },
     )
-    listing = authenticated_client.get("/api/leads")
+    listing = client.get("/api/leads", headers=admin_headers)
 
     assert first.status_code == 201
     assert first.get_json() == {
@@ -230,12 +222,12 @@ def test_lead_write_database_error_is_safe(client, monkeypatch):
     assert "private database path" not in response.get_data(as_text=True)
 
 
-def test_lead_read_database_error_is_safe(authenticated_client, monkeypatch):
+def test_lead_read_database_error_is_safe(client, admin_headers, monkeypatch):
     def database_failure():
         raise sqlite3.OperationalError("private database path")
 
     monkeypatch.setattr(routes_module, "tum_leadler", database_failure)
-    response = authenticated_client.get("/api/leads")
+    response = client.get("/api/leads", headers=admin_headers)
 
     assert response.status_code == 500
     assert response.get_json()["hata"]["kod"] == "DATABASE_ERROR"

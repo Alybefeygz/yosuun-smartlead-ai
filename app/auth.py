@@ -1,4 +1,4 @@
-"""Single-admin authentication boundary for protected lead data."""
+"""Single-admin bearer-token authentication for protected lead data."""
 
 from __future__ import annotations
 
@@ -7,26 +7,16 @@ from functools import wraps
 from hashlib import sha256
 from hmac import compare_digest
 from math import ceil
-from secrets import token_urlsafe
 from threading import Lock
 from time import monotonic
-from typing import Any, Callable, Deque, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Deque, Dict, Optional, Tuple
 
-from flask import (
-    Blueprint,
-    Flask,
-    Response,
-    abort,
-    current_app,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    session,
-    url_for,
-)
+from flask import Blueprint, Flask, Response, current_app, jsonify, request
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash
+
+from app.client_identity import resolve_client_identity
+from app.responses import json_error
 
 
 auth = Blueprint("auth", __name__)
@@ -72,7 +62,7 @@ class LoginAttemptLimiter:
 
         now = monotonic()
         with self._lock:
-            self._prune_attempts(client_key, now)
+            self._prune_all(now)
             attempts = self._attempts.setdefault(client_key, deque())
             attempts.append(now)
             if len(attempts) >= self.max_attempts:
@@ -85,6 +75,15 @@ class LoginAttemptLimiter:
         with self._lock:
             self._attempts.pop(client_key, None)
             self._blocked_until.pop(client_key, None)
+
+    def _prune_all(self, now: float) -> None:
+        """Forget expired lockouts and idle clients so memory stays bounded."""
+
+        for client_key in list(self._attempts):
+            self._prune_attempts(client_key, now)
+        for client_key, blocked_until in list(self._blocked_until.items()):
+            if blocked_until <= now:
+                del self._blocked_until[client_key]
 
     def _prune_attempts(self, client_key: str, now: float) -> None:
         attempts = self._attempts.get(client_key)
@@ -108,28 +107,6 @@ def init_auth(app: Flask) -> None:
     app.register_blueprint(auth)
 
 
-def get_csrf_token() -> str:
-    """Return a session-bound token for state-changing HTML forms."""
-
-    token = session.get("csrf_token")
-    if not isinstance(token, str) or not token:
-        token = token_urlsafe(32)
-        session["csrf_token"] = token
-    return token
-
-
-def _has_valid_csrf_token() -> bool:
-    submitted = request.form.get("csrf_token", "")
-    expected = session.get("csrf_token", "")
-    return (
-        isinstance(submitted, str)
-        and isinstance(expected, str)
-        and bool(submitted)
-        and bool(expected)
-        and compare_digest(submitted, expected)
-    )
-
-
 def _auth_fingerprint() -> Optional[str]:
     username = current_app.config.get("ADMIN_USERNAME")
     password_hash = current_app.config.get("ADMIN_PASSWORD_HASH")
@@ -140,22 +117,12 @@ def _auth_fingerprint() -> Optional[str]:
     return sha256(f"{username}\0{password_hash}".encode("utf-8")).hexdigest()
 
 
-def _is_admin_authenticated() -> bool:
-    expected = _auth_fingerprint()
-    actual = session.get("admin_fingerprint")
-    return (
-        expected is not None
-        and isinstance(actual, str)
-        and compare_digest(actual, expected)
-    )
-
-
 def _token_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(current_app.secret_key, salt=ADMIN_TOKEN_SALT)
 
 
 def _token_max_age_seconds() -> int:
-    return int(current_app.permanent_session_lifetime.total_seconds())
+    return current_app.config["ADMIN_TOKEN_MAX_AGE_SECONDS"]
 
 
 def _has_valid_bearer_token() -> bool:
@@ -179,38 +146,14 @@ def _has_valid_bearer_token() -> bool:
     return isinstance(actual, str) and compare_digest(actual, expected)
 
 
-def _json_error(code: str, message: str, status_code: int) -> Tuple[Response, int]:
-    return (
-        jsonify({"basari": False, "hata": {"kod": code, "mesaj": message}}),
-        status_code,
-    )
-
-
-def admin_page_required(view: Callable[..., Any]) -> Callable[..., Any]:
-    """Redirect anonymous browser requests to the login page."""
-
-    @wraps(view)
-    def wrapped(*args: Any, **kwargs: Any):
-        if not _is_admin_authenticated():
-            session.pop("admin_fingerprint", None)
-            return redirect(url_for("auth.login"))
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
 def admin_api_required(view: Callable[..., Any]) -> Callable[..., Any]:
-    """Return a stable JSON 401 envelope for anonymous API requests.
-
-    Browser sessions and bearer tokens (used by the Wix site) are both accepted.
-    """
+    """Return a stable JSON 401 envelope for requests without a valid token."""
 
     @wraps(view)
     def wrapped(*args: Any, **kwargs: Any):
-        if _is_admin_authenticated() or _has_valid_bearer_token():
+        if _has_valid_bearer_token():
             return view(*args, **kwargs)
-        session.pop("admin_fingerprint", None)
-        return _json_error(
+        return json_error(
             "AUTH_REQUIRED",
             "Bu işlem için yönetici girişi gereklidir.",
             401,
@@ -219,26 +162,8 @@ def admin_api_required(view: Callable[..., Any]) -> Callable[..., Any]:
     return wrapped
 
 
-def _client_key() -> str:
-    return request.remote_addr or "unknown"
-
-
 def _login_limiter() -> LoginAttemptLimiter:
     return current_app.extensions["yosuun_login_limiter"]
-
-
-def _render_login(
-    error: Optional[str] = None,
-    status_code: int = 200,
-) -> Tuple[str, int]:
-    return (
-        render_template(
-            "login.html",
-            csrf_token=get_csrf_token(),
-            error=error,
-        ),
-        status_code,
-    )
 
 
 def _check_credentials(username: str, password: str) -> str:
@@ -278,79 +203,19 @@ def _check_credentials(username: str, password: str) -> str:
     return CREDENTIALS_INVALID
 
 
-@auth.route("/login", methods=["GET", "POST"])
-def login() -> Union[Response, Tuple[str, int]]:
-    """Authenticate the configured administrator without exposing credentials."""
-
-    if _is_admin_authenticated():
-        return redirect(url_for("pages.dashboard"))
-    if request.method == "GET":
-        return _render_login()
-
-    if not _has_valid_csrf_token():
-        return _render_login("Oturum doğrulanamadı. Lütfen tekrar deneyin.", 400)
-
-    limiter = _login_limiter()
-    client_key = _client_key()
-    retry_after = limiter.retry_after(client_key)
-    if retry_after:
-        response, status_code = _render_login(
-            "Çok fazla başarısız deneme yapıldı. Lütfen daha sonra tekrar deneyin.",
-            429,
-        )
-        flask_response = current_app.make_response((response, status_code))
-        flask_response.headers["Retry-After"] = str(retry_after)
-        return flask_response
-
-    status = _check_credentials(
-        request.form.get("username", "").strip(),
-        request.form.get("password", ""),
-    )
-    if status == CREDENTIALS_UNAVAILABLE:
-        return _render_login("Yönetici girişi şu anda kullanılamıyor.", 503)
-    if status == CREDENTIALS_INVALID:
-        limiter.register_failure(client_key)
-        current_app.logger.warning("Başarısız yönetici giriş denemesi.")
-        return _render_login("Kullanıcı adı veya parola hatalı.", 401)
-
-    fingerprint = _auth_fingerprint()
-    if fingerprint is None:
-        return _render_login("Yönetici girişi şu anda kullanılamıyor.", 503)
-
-    limiter.clear(client_key)
-    session.clear()
-    session["admin_fingerprint"] = fingerprint
-    session.permanent = True
-    get_csrf_token()
-    current_app.logger.info("Yönetici oturumu açıldı.")
-    return redirect(url_for("pages.dashboard"), code=303)
-
-
-@auth.post("/logout")
-@admin_page_required
-def logout() -> Response:
-    """End the active administrator session through a CSRF-protected POST."""
-
-    if not _has_valid_csrf_token():
-        abort(400)
-    session.clear()
-    return redirect(url_for("auth.login"), code=303)
-
-
 @auth.post("/api/admin/token")
 def admin_token() -> Tuple[Response, int]:
     """Exchange admin credentials for a short-lived bearer token.
 
-    The Wix site cannot carry Flask's session cookie through its backend, so it
-    authenticates lead listing requests with this token instead. Failures share
-    the browser login limiter.
+    The Wix backend cannot carry a cookie session between calls, so it
+    authenticates lead listing requests with this token instead.
     """
 
     limiter = _login_limiter()
-    client_key = _client_key()
+    client_key = resolve_client_identity().key
     retry_after = limiter.retry_after(client_key)
     if retry_after:
-        response, status_code = _json_error(
+        response, status_code = json_error(
             "RATE_LIMITED",
             "Çok fazla başarısız deneme yapıldı. Lütfen daha sonra tekrar deneyin.",
             429,
@@ -360,7 +225,7 @@ def admin_token() -> Tuple[Response, int]:
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
-        return _json_error(
+        return json_error(
             "VALIDATION_ERROR",
             "JSON istek gövdesi bir nesne olmalıdır.",
             400,
@@ -373,7 +238,7 @@ def admin_token() -> Tuple[Response, int]:
         password if isinstance(password, str) else "",
     )
     if status == CREDENTIALS_UNAVAILABLE:
-        return _json_error(
+        return json_error(
             "AUTH_UNAVAILABLE",
             "Yönetici girişi şu anda kullanılamıyor.",
             503,
@@ -381,7 +246,7 @@ def admin_token() -> Tuple[Response, int]:
     if status == CREDENTIALS_INVALID:
         limiter.register_failure(client_key)
         current_app.logger.warning("Başarısız yönetici token denemesi.")
-        return _json_error(
+        return json_error(
             "AUTH_FAILED",
             "Kullanıcı adı veya parola hatalı.",
             401,
@@ -389,7 +254,7 @@ def admin_token() -> Tuple[Response, int]:
 
     fingerprint = _auth_fingerprint()
     if fingerprint is None:
-        return _json_error(
+        return json_error(
             "AUTH_UNAVAILABLE",
             "Yönetici girişi şu anda kullanılamıyor.",
             503,
