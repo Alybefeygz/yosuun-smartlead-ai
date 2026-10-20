@@ -18,7 +18,6 @@ def test_development_app_uses_expected_safe_defaults(tmp_path):
     )
 
     assert app.config["DEBUG"] is True
-    assert app.config["AI_PROVIDER"] == "groq"
     assert app.config["GROQ_MODEL"] == "openai/gpt-oss-20b"
     assert app.config["AI_HISTORY_MAX_MESSAGES"] == 20
     assert app.config["AI_HISTORY_MAX_CHARS"] == 8000
@@ -26,6 +25,8 @@ def test_development_app_uses_expected_safe_defaults(tmp_path):
     assert app.config["AI_MAX_COMPLETION_TOKENS"] == 500
     assert app.config["KNOWLEDGE_BASE_PATH"].endswith("knowledge/yosuun_mvp.md")
     assert app.config["CHAT_RATE_LIMIT_REQUESTS"] == 10
+    assert app.config["LEAD_RATE_LIMIT_REQUESTS"] == 5
+    assert app.config["LEAD_RATE_LIMIT_WINDOW_SECONDS"] == 600
     assert app.config["MAX_CONTENT_LENGTH"] == 65536
 
 
@@ -74,7 +75,10 @@ def test_production_requires_admin_password_hash(monkeypatch):
         ProductionConfig.validate()
 
 
-def test_production_uses_secure_session_cookie():
-    assert ProductionConfig.SESSION_COOKIE_SECURE is True
-    assert ProductionConfig.SESSION_COOKIE_HTTPONLY is True
-    assert ProductionConfig.SESSION_COOKIE_SAMESITE == "Lax"
+def test_admin_token_lifetime_defaults_to_thirty_minutes(tmp_path):
+    app = create_app(
+        "development",
+        {"DATABASE_URL": str(tmp_path / "config-test.sqlite3")},
+    )
+
+    assert app.config["ADMIN_TOKEN_MAX_AGE_SECONDS"] == 30 * 60

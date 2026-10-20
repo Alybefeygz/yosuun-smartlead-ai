@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Type
 
@@ -47,7 +46,6 @@ class Config:
     ADMIN_PASSWORD_HASH: Optional[str] = os.getenv("ADMIN_PASSWORD_HASH") or None
     DATABASE_URL = os.getenv("DATABASE_URL", str(DEFAULT_DATABASE_PATH))
     GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY") or None
-    AI_PROVIDER = os.getenv("AI_PROVIDER", "groq").strip().lower()
     GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
     AI_TIMEOUT_SECONDS = _parse_positive_int(
         os.getenv("AI_TIMEOUT_SECONDS", "20"),
@@ -81,6 +79,19 @@ class Config:
         os.getenv("CHAT_RATE_LIMIT_WINDOW_SECONDS", "60"),
         default=60,
     )
+    LEAD_RATE_LIMIT_REQUESTS = _parse_positive_int(
+        os.getenv("LEAD_RATE_LIMIT_REQUESTS", "5"),
+        default=5,
+    )
+    LEAD_RATE_LIMIT_WINDOW_SECONDS = _parse_positive_int(
+        os.getenv("LEAD_RATE_LIMIT_WINDOW_SECONDS", "600"),
+        default=600,
+    )
+    WIX_SHARED_SECRET: Optional[str] = os.getenv("WIX_SHARED_SECRET") or None
+    WIX_CHAT_RATE_LIMIT_REQUESTS = _parse_positive_int(
+        os.getenv("WIX_CHAT_RATE_LIMIT_REQUESTS", "60"),
+        default=60,
+    )
     MAX_CONTENT_LENGTH = _parse_positive_int(
         os.getenv("MAX_CONTENT_LENGTH", "65536"),
         default=65536,
@@ -97,6 +108,10 @@ class Config:
         os.getenv("AUTH_LOCKOUT_SECONDS", "600"),
         default=600,
     )
+    ADMIN_TOKEN_MAX_AGE_SECONDS = _parse_positive_int(
+        os.getenv("ADMIN_TOKEN_MAX_AGE_SECONDS", "1800"),
+        default=1800,
+    )
     BUSINESS_CONTEXT = os.getenv(
         "BUSINESS_CONTEXT",
         """Sen Yosuun E-Ticaret Ekosistemi'nin yapay zekâ asistanısın.
@@ -110,10 +125,6 @@ Ana marka yaklaşımı: “Sen hayatını yaşa, e-ticareti Yosuun halletsin.”
 
     DEBUG = False
     TESTING = False
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = False
-    PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     TRUST_PROXY_HEADERS = False
 
     @classmethod
@@ -140,7 +151,6 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     """Production settings with strict secret validation."""
 
-    SESSION_COOKIE_SECURE = True
     TRUST_PROXY_HEADERS = True
 
     @classmethod

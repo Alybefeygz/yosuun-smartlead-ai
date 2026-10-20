@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="app/static/images/logo.png" alt="Yosuun logosu" width="96">
-
 # Yosuun SmartLead AI
 
-**Yapay zekâ destekli ziyaretçi asistanı ve lead yönetim paneli**
+**Wix sitesine hizmet veren yapay zekâ asistanı ve lead yönetimi API'si**
 
 *"Sen hayatını yaşa, e-ticareti Yosuun halletsin."*
 
@@ -12,11 +10,10 @@
 ![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-veri%20katmanı-003B57?logo=sqlite&logoColor=white)
 ![Groq](https://img.shields.io/badge/Groq-openai%2Fgpt--oss--20b-F55036)
-![Tests](https://img.shields.io/badge/testler-124%20geçti-7CF56A)
+![Tests](https://img.shields.io/badge/testler-116%20geçti-7CF56A)
 ![Render](https://img.shields.io/badge/deploy-Render-46E3B7?logo=render&logoColor=white)
 
-[Canlı demo](https://yosuun-smartlead-ai.onrender.com) ·
-[Ekran görüntüleri](#-ekran-görüntüleri) ·
+[Wix sitesi](https://ygzefealyb.wixsite.com/yosuun-smartlead) ·
 [Kurulum](#-yerel-kurulum) ·
 [API](#-api) ·
 [Güvenlik](#-güvenlik-kararları)
@@ -25,22 +22,20 @@
 
 ---
 
-![Yosuun SmartLead AI ana sayfa](docs/screenshots/01-ana-sayfa.png)
-
 ## 📌 Proje hakkında
 
-Yosuun SmartLead AI; ziyaretçilerin Yosuun hakkında yapay zekâ destekli yanıtlar almasını, iletişim talebi bırakmasını ve bu taleplerin tek bir yönetim ekranında görüntülenmesini sağlayan Flask tabanlı bir MVP'dir.
+Yosuun SmartLead AI, Wix üzerinde yayınlanan Yosuun sitesinin backend'idir. Ziyaretçilerin Yosuun hakkında yapay zekâ destekli yanıtlar almasını, iletişim talebi bırakmasını ve yöneticinin bu talepleri listelemesini sağlayan Flask tabanlı bir JSON API'sidir.
 
-Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik dosyaları sunar hem de sohbet/lead API'lerini sağlar. Groq anahtarı tanımlanmadığında sohbet güvenli bir demo cevabı döndürür.
+Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (`backend/smartlead.web.js`) `wix-fetch` ile bu API'ye sunucudan sunucuya istek atar. Groq anahtarı tanımlanmadığında sohbet güvenli bir demo cevabı döndürür.
 
-| Kullanıcı | Ne yapar? | Nerede? |
-|---|---|---|
-| **Ziyaretçi (B2C)** | Yosuun AI Asistan'a soru sorar, iletişim bilgisini bırakır | `/` |
-| **Yönetici (B2B)** | Güvenli giriş yapar, gelen lead'leri listeler | `/login`, `/dashboard` |
+| Kullanıcı | Ne yapar? | Wix tarafı | API |
+|---|---|---|---|
+| **Ziyaretçi (B2C)** | AI asistana soru sorar | Ana sayfa | `POST /api/sohbet` |
+| **Ziyaretçi (B2C)** | İletişim bilgisini bırakır | `/iletisim` | `POST /api/leads` |
+| **Yönetici (B2B)** | Giriş yapar, lead'leri listeler | Admin sayfaları | `POST /api/admin/token`, `GET /api/leads` |
 
 ## 📑 İçindekiler
 
-- [Ekran görüntüleri](#-ekran-görüntüleri)
 - [Özellikler](#-özellikler)
 - [Teknoloji yığını](#-teknoloji-yığını)
 - [Mimari](#-mimari)
@@ -52,42 +47,6 @@ Uygulama tek servis olarak çalışır: Flask hem Jinja arayüzlerini ve statik 
 - [Güvenlik kararları](#-güvenlik-kararları)
 - [AI bilgi kaynağını güncelleme](#-ai-bilgi-kaynağını-güncelleme)
 - [Bilinen sınırlamalar](#-bilinen-sınırlamalar)
-
-## 📸 Ekran görüntüleri
-
-### 1. Yosuun AI Asistan ile sohbet
-
-Ziyaretçi, ürün, stok, rakip ve operasyon süreçleriyle ilgili sorusunu yazar. Mesaj `/api/sohbet` endpoint'ine gider; backend, bilgi dokümanının tamamını ve sınırlı sohbet geçmişini Groq'a göndererek cevabı üretir. Asistan önceki mesajları hatırlayarak takip sorularına da yanıt verir.
-
-![AI asistan ile çok adımlı sohbet](docs/screenshots/02-ai-sohbet.png)
-
-### 2. İletişim talebi (lead) oluşturma
-
-Alttaki ok ve nokta kontrolleriyle iletişim ekranına geçilir. Ad soyad ve telefon zorunlu, mesaj isteğe bağlıdır. Kayıt başarılı olduğunda ziyaretçiye onay mesajı gösterilir.
-
-![İletişim formu ve başarı mesajı](docs/screenshots/03-iletisim-formu.png)
-
-### 3. Yönetici girişi
-
-Yönetim paneli yalnızca yetkili hesaba açıktır. Parola PBKDF2 hash'i ile doğrulanır; form CSRF token'ı ile korunur ve tekrarlanan hatalı denemeler geçici olarak sınırlandırılır.
-
-![Yönetici giriş ekranı](docs/screenshots/04-yonetici-girisi.png)
-
-### 4. Lead yönetim paneli
-
-Web sitesinden gelen tüm iletişim talepleri en yeniden eskiye listelenir. Her satırda isim, tıklanabilir telefon bağlantısı, mesaj ve tarih yer alır; **Yenile** butonu listeyi sayfa yenilemeden günceller.
-
-![Lead yönetim paneli](docs/screenshots/05-yonetim-paneli.png)
-
-### 5. Mobil görünüm
-
-Arayüz responsive tasarlanmıştır; sohbet ve form ekranları telefon boyutunda da tek sütunda rahatça kullanılır.
-
-<p align="center">
-  <img src="docs/screenshots/06-mobil.png" alt="Mobil görünüm" width="320">
-</p>
-
-> Ekran görüntüleri yerel ortamda, geçici bir SQLite veritabanı ve örnek (gerçek olmayan) lead kayıtlarıyla alınmıştır.
 
 ## ✨ Özellikler
 
@@ -101,23 +60,21 @@ Arayüz responsive tasarlanmıştır; sohbet ve form ekranları telefon boyutund
 
 **Lead yönetimi**
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
-- Lead'leri en yeniden eskiye sıralayan responsive dashboard
+- Lead'leri en yeniden eskiye döndüren korumalı liste endpoint'i
 - SQLite veri katmanı ve parametrik sorgular
 
 **Güvenlik ve kalite**
-- Parola hash'i, CSRF ve oturum korumalı tek-admin yönetici girişi
-- Aynı-origin, göreli `/api/*` istekleri
-- Güvenli hata cevapları, istek boyutu ve alan uzunluğu sınırları
-- Klavye kullanımını ve temel erişilebilirliği gözeten arayüzler
-- 124 otomatik test
+- Parola hash'i ve imzalı, süreli bearer token ile tek-admin yetkilendirme
+- Ortak JSON hata zarfı, istek boyutu ve alan uzunluğu sınırları
+- 116 otomatik test
 
 ## 🧰 Teknoloji yığını
 
 | Katman | Teknoloji |
 |---|---|
-| Backend | Python 3.9+, Flask, Jinja |
+| Backend | Python 3.9+, Flask |
 | Veritabanı | SQLite |
-| Frontend | Vanilla JavaScript (ES modules), CSS |
+| Arayüz | Wix (Velo backend modülü + `wix-fetch`) |
 | Yapay zekâ | Groq Chat Completions API (`openai/gpt-oss-20b`) |
 | Sunucu | Gunicorn |
 | Test | Pytest |
@@ -125,37 +82,35 @@ Arayüz responsive tasarlanmıştır; sohbet ve form ekranları telefon boyutund
 
 ### Öğrenci yönergesine uyarlamalar
 
-Proje, SmartLead AI öğrenci yönergesinin backend mimarisini korur. Teslimde yanlış anlaşılmayı önlemek için iki bilinçli uyarlama yapılmıştır:
+Proje, SmartLead AI öğrenci yönergesinin backend mimarisini korur. Teslimde yanlış anlaşılmayı önlemek için iki noktanın altını çizmek gerekir:
 
-- Wix/Velo yerine B2C ve B2B arayüzleri Flask/Jinja, vanilla JavaScript ve CSS ile aynı uygulamada geliştirilmiştir. Bu nedenle frontend istekleri aynı-origin `/api/*` yollarını kullanır ve CORS açılmaz.
+- Wix istekleri tarayıcıdan değil Wix backend'inden gönderildiği için CORS açılmaz. Wix cookie session taşıyamadığından yönetici yetkisi bearer token ile verilir.
 - Yönergedeki `llama-3.1-8b-instant` modeli Groq tarafından 16 Ağustos 2026'da developer/free kullanım için kapatıldığından Groq'un önerdiği `openai/gpt-oss-20b` kullanılır. Ayrıntı: [Groq model deprecation](https://console.groq.com/docs/deprecations).
 
 ## 🏗️ Mimari
 
 ```text
-Browser
-  ├── /            -> B2C sohbet ve lead formu
-  ├── /login       -> Yönetici kimlik doğrulaması
-  ├── /dashboard   -> Korumalı B2B lead listesi
-  └── /api/*       -> Flask route katmanı
-                         ├── AIService
-                         │    ├── KnowledgeService -> dokümanın tamamı
-                         │    └── Groq -> tek AI cevabı
-                         └── database  -> SQLite
+Wix sayfası (tarayıcı)
+  └── Wix backend (smartlead.web.js, wix-fetch)
+        └── Render: Flask API
+              ├── /api/sohbet       -> AIService
+              │                        ├── KnowledgeService -> dokümanın tamamı
+              │                        └── Groq -> tek AI cevabı
+              ├── /api/leads        -> database -> SQLite
+              ├── /api/admin/token  -> auth (imzalı token)
+              └── /health
 ```
-
-Sayfa rotaları `pages`, JSON rotaları `api` Blueprint'i altında tutulur; `/api` öneki application factory tarafından kaydedilir.
 
 ### Sohbet isteğinin yolculuğu
 
 ```text
 Ziyaretçi mesajı
-  → home.js / api-client.js   (POST /api/sohbet)
+  → Wix sayfası + backend     (POST /api/sohbet)
   → routes.py                 (JSON doğrulama, hız sınırı)
   → ai_service.py             (sistem prompt'u + bilgi dokümanı + geçmiş)
   → Groq API                  (cevap üretimi)
   → routes.py                 ({"basari": true, "cevap": "..."})
-  → home.js                   (textContent ile güvenli render)
+  → Wix sayfası               (cevabı gösterir)
 ```
 
 ### Dosya sorumlulukları
@@ -163,16 +118,14 @@ Ziyaretçi mesajı
 | Dosya | Sorumluluk |
 |---|---|
 | `app/__init__.py` | Application factory, health endpoint'i ve ortak hata yönetimi |
-| `app/auth.py` | Yönetici girişi, session, CSRF ve deneme sınırı |
-| `app/routes.py` | Ayrı `pages`/`api` Blueprint'leri, HTTP doğrulama, servis çağrısı ve response mapping |
+| `app/auth.py` | Yönetici token'ı, bearer doğrulaması ve deneme sınırı |
+| `app/responses.py` | Ortak JSON hata zarfı |
+| `app/routes.py` | `api` Blueprint'i, HTTP doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
 | `app/services/ai_service.py` | Tam bilgi dokümanıyla prompt oluşturma, Groq çağrısı ve demo modu |
 | `app/services/knowledge_service.py` | Markdown bilgi dokümanını tek parça okuyup bellekte tutma |
 | `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
 | `knowledge/yosuun_mvp.md` | AI'nin her istekte tamamını kullandığı kısa bilgi dokümanı |
-| `app/static/js/api-client.js` | Frontend HTTP sözleşmesi |
-| `app/static/js/home.js` | Sohbet, slider ve lead formu davranışları |
-| `app/static/js/dashboard.js` | Lead listesinin güvenli DOM render işlemleri |
 | `config.py` | Environment tabanlı tek yapılandırma kaynağı |
 
 ### Klasör yapısı
@@ -183,20 +136,19 @@ yosuun-smartlead-ai/
 │   ├── __init__.py          # create_app()
 │   ├── auth.py
 │   ├── database.py
+│   ├── responses.py
 │   ├── routes.py
 │   ├── services/
 │   │   ├── ai_service.py
 │   │   ├── knowledge_service.py
 │   │   └── rate_limiter.py
-│   ├── static/              # css/, js/, images/
-│   └── templates/           # index.html, login.html, dashboard.html
 ├── knowledge/
 │   └── yosuun_mvp.md        # AI bilgi kaynağı
-├── docs/screenshots/        # README görselleri
 ├── tests/
 ├── config.py
 ├── run.py
-└── requirements.txt
+├── requirements.txt         # production bağımlılıkları
+└── requirements-dev.txt     # + pytest
 ```
 
 ## 🚀 Yerel kurulum
@@ -207,19 +159,19 @@ cd yosuun-smartlead-ai
 
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 cp .env.example .env
 python run.py
 ```
 
-Uygulama varsayılan olarak `http://127.0.0.1:5000` adresinde açılır:
+API varsayılan olarak `http://127.0.0.1:5000` adresinde çalışır. Hızlı kontrol:
 
-| Sayfa | Adres |
-|---|---|
-| Ziyaretçi arayüzü | `http://127.0.0.1:5000/` |
-| Yönetici girişi | `http://127.0.0.1:5000/login` |
-| Yönetim ekranı | `http://127.0.0.1:5000/dashboard` |
-| Sağlık kontrolü | `http://127.0.0.1:5000/health` |
+```bash
+curl http://127.0.0.1:5000/health
+curl -X POST http://127.0.0.1:5000/api/sohbet \
+  -H "Content-Type: application/json" \
+  -d '{"mesaj": "Yosuun nedir?"}'
+```
 
 Gerçek AI yanıtları için `.env` dosyasındaki `GROQ_API_KEY` değerini doldurun. Bu dosya Git tarafından yok sayılır; gerçek anahtarları hiçbir zaman commit etmeyin.
 
@@ -237,9 +189,9 @@ python -c "from getpass import getpass; from werkzeug.security import generate_p
 | `SECRET_KEY` | Production'da evet | Uzun ve rastgele bir secret |
 | `ADMIN_USERNAME` | Production'da evet | Yönetici kullanıcı adı |
 | `ADMIN_PASSWORD_HASH` | Production'da evet | Düz parola değil, PBKDF2 hash değeri |
+| `ADMIN_TOKEN_MAX_AGE_SECONDS` | Hayır | `1800`; Wix'e verilen token'ın ömrü |
 | `DATABASE_URL` | Hayır | `instance/yosuun.sqlite3` |
 | `GROQ_API_KEY` | Gerçek AI için evet | Boşsa demo modu kullanılır |
-| `AI_PROVIDER` | Hayır | `groq` |
 | `GROQ_MODEL` | Hayır | `openai/gpt-oss-20b` |
 | `AI_TIMEOUT_SECONDS` | Hayır | `20` |
 | `AI_HISTORY_MAX_MESSAGES` | Hayır | `20` |
@@ -249,6 +201,10 @@ python -c "from getpass import getpass; from werkzeug.security import generate_p
 | `KNOWLEDGE_BASE_PATH` | Hayır | `knowledge/yosuun_mvp.md` |
 | `CHAT_RATE_LIMIT_REQUESTS` | Hayır | Pencere başına `10` sohbet isteği |
 | `CHAT_RATE_LIMIT_WINDOW_SECONDS` | Hayır | `60` saniye |
+| `LEAD_RATE_LIMIT_REQUESTS` | Hayır | Pencere başına `5` lead kaydı |
+| `LEAD_RATE_LIMIT_WINDOW_SECONDS` | Hayır | `600` saniye |
+| `WIX_SHARED_SECRET` | Hayır | Wix Secrets Manager'daki değerle aynı; boşsa limitler IP'ye göre |
+| `WIX_CHAT_RATE_LIMIT_REQUESTS` | Hayır | Tüm Wix ziyaretçileri için pencere başına toplam `60` sohbet isteği |
 | `MAX_CONTENT_LENGTH` | Hayır | `65536` byte |
 | `BUSINESS_CONTEXT` | Hayır | Uygulamadaki varsayılan Yosuun sistem bağlamı |
 
@@ -261,7 +217,7 @@ Tüm API cevapları `basari` alanını içerir.
 | `POST` | `/api/sohbet` | Herkese açık (hız sınırlı) | AI asistandan cevap alır |
 | `POST` | `/api/leads` | Herkese açık | Yeni iletişim talebi oluşturur |
 | `POST` | `/api/admin/token` | Herkese açık (giriş limiti) | Yönetici bilgileriyle kısa ömürlü token alır |
-| `GET` | `/api/leads` | Yönetici oturumu veya token | Lead listesini döndürür |
+| `GET` | `/api/leads` | Bearer token | Lead listesini döndürür |
 | `GET` | `/health` | Herkese açık | Servis sağlık kontrolü |
 
 ### Sohbet
@@ -308,7 +264,7 @@ Başarılı cevap `201 Created` durum koduyla döner:
 
 `POST /api/admin/token`
 
-Wix sitesi Flask'ın session cookie'sini taşıyamadığı için yönetici paneli bu endpoint'ten token alır.
+Wix'in yönetici sayfaları lead listesini okumadan önce bu endpoint'ten token alır.
 
 ```json
 {"kullanici_adi": "admin", "parola": "..."}
@@ -320,13 +276,13 @@ Başarılı cevap:
 {"basari": true, "token": "...", "sure_saniye": 1800}
 ```
 
-Token `SECRET_KEY` ile imzalanır, oturum süresi (30 dakika) kadar geçerlidir ve yönetici parolası değişince geçersiz olur. Hatalı denemeler `/login` ile aynı deneme limitini paylaşır (`401 AUTH_FAILED`, `429 RATE_LIMITED`).
+Token `SECRET_KEY` ile imzalanır, `ADMIN_TOKEN_MAX_AGE_SECONDS` (varsayılan 30 dakika) kadar geçerlidir ve yönetici parolası değişince geçersiz olur. Tekrarlanan hatalı denemeler geçici olarak engellenir (`401 AUTH_FAILED`, `429 RATE_LIMITED`).
 
 ### Lead listesi
 
 `GET /api/leads`
 
-Bu endpoint geçerli bir yönetici session cookie'si veya `Authorization: Bearer <token>` başlığı gerektirir. Anonim istekler `401 AUTH_REQUIRED` alır.
+Bu endpoint `Authorization: Bearer <token>` başlığı gerektirir. Anonim istekler `401 AUTH_REQUIRED` alır.
 
 ```json
 {
@@ -360,7 +316,7 @@ Hata cevapları ortak bir zarf kullanır:
 python -m pytest -q
 ```
 
-Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama, yapılandırma ve arayüz şablonlarını denetleyen **124 otomatik test** içerir.
+Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama ve yapılandırmayı denetleyen **116 otomatik test** içerir.
 
 | Test dosyası | Kapsam |
 |---|---|
@@ -368,9 +324,10 @@ Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama, yapıla
 | `tests/test_routes.py` | API sözleşmesi, doğrulama ve hata cevapları |
 | `tests/test_ai_service.py` | Prompt oluşturma, Groq çağrısı, hata normalizasyonu, demo modu |
 | `tests/test_knowledge_service.py` | Bilgi dokümanının okunması |
-| `tests/test_auth.py` | Giriş, oturum, CSRF ve deneme sınırı |
+| `tests/test_auth.py` | Yetki sınırları ve güvenlik başlıkları |
+| `tests/test_admin_token.py` | Token alma, doğrulama, süre ve deneme sınırı |
+| `tests/test_client_identity.py` | Wix ziyaretçi kimliği ve ziyaretçi başına limitler |
 | `tests/test_config.py` | Environment tabanlı yapılandırma |
-| `tests/test_templates.py` | Arayüz şablonu sözleşmeleri |
 
 Belirli bir katmanı çalıştırmak için örnek:
 
@@ -392,7 +349,6 @@ SECRET_KEY=<uzun-rastgele-secret>
 ADMIN_USERNAME=<yonetici-kullanici-adi>
 ADMIN_PASSWORD_HASH=<pbkdf2-parola-hash-degeri>
 GROQ_API_KEY=<gercek-groq-anahtari>
-AI_PROVIDER=groq
 GROQ_MODEL=openai/gpt-oss-20b
 AI_TEMPERATURE=0.3
 AI_MAX_COMPLETION_TOKENS=500
@@ -409,18 +365,15 @@ DATABASE_URL=<kalici-disk-uzerindeki-sqlite-yolu>
 - `.env`, SQLite runtime dosyaları, sanal ortamlar ve cache çıktıları repoya alınmaz.
 - SQL yalnızca `app/database.py` içinde ve `?` placeholder'larıyla çalışır.
 - Groq çağrısı ve API anahtarı yalnızca backend tarafındadır.
-- `/dashboard` ve `GET /api/leads` sunucu tarafında yönetici oturumuyla korunur; `GET /api/leads` ayrıca Wix paneli için imzalı ve süreli bir bearer token kabul eder.
+- `GET /api/leads` imzalı, süreli ve parola değişince geçersizleşen bir bearer token ile korunur.
 - Düz parola saklanmaz; Werkzeug doğrulamalı PBKDF2 hash'i kullanılır.
-- Login ve logout formları session-bound CSRF token kullanır.
-- Production cookie'si `Secure`, `HttpOnly` ve `SameSite=Lax` olarak ayarlanır.
-- Tekrarlanan başarısız girişler geçici olarak sınırlandırılır; hassas sayfalar cache'lenmez.
-- CSP, clickjacking, MIME-sniffing, referrer ve HSTS güvenlik başlıkları uygulanır.
-- Frontend kullanıcı verisini `textContent` ile render eder; `innerHTML` kullanmaz.
+- Tekrarlanan başarısız token denemeleri geçici olarak sınırlandırılır; lead ve token cevapları cache'lenmez.
+- MIME-sniffing ve (production'da) HSTS başlıkları uygulanır.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
 - Bilgi dokümanının tamamı yalnızca backend tarafından okunur ve Groq sistem mesajına eklenir.
 - Sistem prompt'u bilgi dokümanı içindeki talimat benzeri metinlerin yeni komut olarak yorumlanmamasını söyler.
 - Groq timeout, ağ, HTTP, boş veya bozuk cevap hataları `AIServiceError` olarak normalize edilir ve API'den güvenli `503` cevabı döner.
-- Public sohbet endpoint'i IP başına kayan pencere hız sınırıyla korunur.
+- Public sohbet endpoint'i kayan pencere hız sınırıyla korunur. Wix'ten gelen isteklerde (`X-Wix-Secret` doğruysa) limit `X-Client-Id` ile ziyaretçi başına uygulanır, ayrıca tüm Wix trafiği için toplam bir limit vardır; diğer istekler IP'ye göre sınırlanır.
 - Production hata cevapları traceback veya secret içermez.
 
 ## 📚 AI bilgi kaynağını güncelleme
@@ -436,7 +389,9 @@ python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
 ## 🚧 Bilinen sınırlamalar
 
 - Kimlik doğrulama tek yönetici hesabına yöneliktir; kullanıcı yönetimi ve parola sıfırlama akışı yoktur.
-- Login ve sohbet hız sınırları process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
+- Login, sohbet ve lead hız sınırları process belleğindedir; birden fazla instance için Redis gibi ortak bir rate-limit deposu gerekir.
+- Wix ziyaretçi kimliği tarayıcıda üretilir; kimliğini sıfırlayan biri kişisel limiti aşabilir ama Wix toplam limitini aşamaz.
+- Render free tier uykudan uyanırken ilk istek, Wix backend'inin zaman aşımından uzun sürebilir.
 - SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
 - Bilgi dokümanının tamamı her AI isteğine eklendiği için dosyanın Groq token limitinin altında tutulması gerekir. Doküman ciddi ölçüde büyürse daha sonra chunking veya vektör arama eklenebilir.
 - Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
@@ -444,4 +399,5 @@ python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
 ## 🔗 Bağlantılar
 
 - GitHub: <https://github.com/Alybefeygz/yosuun-smartlead-ai>
-- Canlı demo: <https://yosuun-smartlead-ai.onrender.com>
+- Wix sitesi: <https://ygzefealyb.wixsite.com/yosuun-smartlead>
+- API: <https://yosuun-smartlead-ai.onrender.com>

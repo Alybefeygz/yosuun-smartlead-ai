@@ -5,17 +5,18 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import Blueprint, Response, current_app, jsonify, render_template, request
+from flask import Blueprint, Response, current_app, jsonify, request
 
-from app.auth import admin_api_required, admin_page_required, get_csrf_token
+from app.auth import admin_api_required
+from app.client_identity import resolve_client_identity
 from app.database import lead_ekle, tum_leadler
+from app.responses import json_error
 from app.services.ai_service import AIServiceError, ai_service
 from app.services.rate_limiter import SlidingWindowRateLimiter
 
 
-# Page rendering and JSON APIs have separate routing boundaries.  The API
-# prefix is applied in create_app(), so this module only declares local paths.
-pages = Blueprint("pages", __name__)
+# The API prefix is applied in create_app(), so this module only declares
+# local paths.
 api = Blueprint("api", __name__)
 
 NAME_MAX_LENGTH = 100
@@ -30,40 +31,43 @@ class RequestValidationError(ValueError):
     """Raised when an HTTP request violates the public API contract."""
 
 
+# Every visitor coming through Wix also counts toward this one shared key, so
+# rotating visitor IDs cannot exceed the Wix-wide chat budget.
+WIX_TOTAL_LIMIT_KEY = "wix"
+
+
 def init_chat_rate_limit(app) -> None:
     """Attach process-local abuse protection for the public chat endpoint."""
 
+    window_seconds = app.config["CHAT_RATE_LIMIT_WINDOW_SECONDS"]
     app.extensions["yosuun_chat_limiter"] = SlidingWindowRateLimiter(
         max_requests=app.config["CHAT_RATE_LIMIT_REQUESTS"],
-        window_seconds=app.config["CHAT_RATE_LIMIT_WINDOW_SECONDS"],
+        window_seconds=window_seconds,
+    )
+    app.extensions["yosuun_wix_chat_limiter"] = SlidingWindowRateLimiter(
+        max_requests=app.config["WIX_CHAT_RATE_LIMIT_REQUESTS"],
+        window_seconds=window_seconds,
+    )
+
+
+def init_lead_rate_limit(app) -> None:
+    """Attach process-local abuse protection for the public lead endpoint."""
+
+    app.extensions["yosuun_lead_limiter"] = SlidingWindowRateLimiter(
+        max_requests=app.config["LEAD_RATE_LIMIT_REQUESTS"],
+        window_seconds=app.config["LEAD_RATE_LIMIT_WINDOW_SECONDS"],
     )
 
 
 def _chat_retry_after() -> int:
-    limiter = current_app.extensions["yosuun_chat_limiter"]
-    client_key = request.remote_addr or "unknown"
-    return limiter.acquire(client_key)
+    """Apply the per-client limit, then the Wix-wide limit for Wix traffic."""
 
-
-def _error_response(
-    code: str,
-    message: str,
-    status_code: int,
-) -> Tuple[Response, int]:
-    """Build the shared safe API error envelope."""
-
-    return (
-        jsonify(
-            {
-                "basari": False,
-                "hata": {
-                    "kod": code,
-                    "mesaj": message,
-                },
-            }
-        ),
-        status_code,
-    )
+    identity = resolve_client_identity()
+    retry_after = current_app.extensions["yosuun_chat_limiter"].acquire(identity.key)
+    if retry_after or not identity.via_wix:
+        return retry_after
+    wix_limiter = current_app.extensions["yosuun_wix_chat_limiter"]
+    return wix_limiter.acquire(WIX_TOTAL_LIMIT_KEY)
 
 
 def _json_object() -> Dict[str, Any]:
@@ -153,28 +157,13 @@ def _validated_history(value: Any) -> List[Dict[str, str]]:
     return history
 
 
-@pages.get("/")
-def index() -> str:
-    """Render the backend fallback landing page."""
-
-    return render_template("index.html")
-
-
-@pages.get("/dashboard")
-@admin_page_required
-def dashboard() -> str:
-    """Render the backend fallback dashboard page."""
-
-    return render_template("dashboard.html", csrf_token=get_csrf_token())
-
-
 @api.post("/sohbet")
 def sohbet() -> Tuple[Response, int]:
     """Validate a visitor message and delegate response generation to AIService."""
 
     retry_after = _chat_retry_after()
     if retry_after:
-        response, status_code = _error_response(
+        response, status_code = json_error(
             "RATE_LIMITED",
             "Çok fazla sohbet isteği gönderildi. Lütfen kısa süre sonra tekrar deneyin.",
             429,
@@ -193,17 +182,17 @@ def sohbet() -> Tuple[Response, int]:
         history = _validated_history(payload.get("gecmis"))
         answer = ai_service.yanit_uret(message, history)
     except RequestValidationError as exc:
-        return _error_response("VALIDATION_ERROR", str(exc), 400)
+        return json_error("VALIDATION_ERROR", str(exc), 400)
     except ValueError:
         current_app.logger.warning("AI servisine geçersiz doğrulanmış veri iletildi.")
-        return _error_response(
+        return json_error(
             "VALIDATION_ERROR",
             "Sohbet isteği geçersiz.",
             400,
         )
     except AIServiceError:
         current_app.logger.exception("AI servis isteği başarısız oldu.")
-        return _error_response(
+        return json_error(
             "AI_SERVICE_UNAVAILABLE",
             "AI servisine şu anda ulaşılamıyor. Lütfen tekrar deneyin.",
             503,
@@ -215,6 +204,17 @@ def sohbet() -> Tuple[Response, int]:
 @api.post("/leads")
 def lead_olustur() -> Tuple[Response, int]:
     """Validate and persist one visitor lead."""
+
+    client_key = resolve_client_identity().key
+    retry_after = current_app.extensions["yosuun_lead_limiter"].acquire(client_key)
+    if retry_after:
+        response, status_code = json_error(
+            "RATE_LIMITED",
+            "Çok fazla iletişim talebi gönderildi. Lütfen daha sonra tekrar deneyin.",
+            429,
+        )
+        response.headers["Retry-After"] = str(retry_after)
+        return response, status_code
 
     try:
         payload = _json_object()
@@ -233,10 +233,10 @@ def lead_olustur() -> Tuple[Response, int]:
         )
         lead_id = lead_ekle(name, phone, message)
     except RequestValidationError as exc:
-        return _error_response("VALIDATION_ERROR", str(exc), 400)
+        return json_error("VALIDATION_ERROR", str(exc), 400)
     except sqlite3.Error:
         current_app.logger.exception("Lead kaydı veritabanına yazılamadı.")
-        return _error_response(
+        return json_error(
             "DATABASE_ERROR",
             "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
             500,
@@ -263,7 +263,7 @@ def leadleri_listele() -> Tuple[Response, int]:
         leads = tum_leadler()
     except sqlite3.Error:
         current_app.logger.exception("Lead listesi veritabanından okunamadı.")
-        return _error_response(
+        return json_error(
             "DATABASE_ERROR",
             "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
             500,

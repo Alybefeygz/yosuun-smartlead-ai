@@ -12,7 +12,6 @@ from config import Config
 
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
-ALLOWED_HISTORY_ROLES = frozenset({"user", "assistant"})
 DEMO_MODE_RESPONSE = (
     "Yosuun AI Asistan şu anda demo modunda çalışıyor. "
     "Yosuun hakkında bilgi almak için iletişim formunu kullanabilirsiniz."
@@ -20,8 +19,7 @@ DEMO_MODE_RESPONSE = (
 _UNSET = object()
 _DEFAULT_KNOWLEDGE_SERVICE = KnowledgeService(Path(Config.KNOWLEDGE_BASE_PATH))
 
-ASSISTANT_POLICY = """Sen Yosuun'un yapay zekâ asistanısın.
-- Kullanıcıyla Türkçe, doğal, samimi ve profesyonel konuş.
+ASSISTANT_POLICY = """- Kullanıcıyla Türkçe, doğal, samimi ve profesyonel konuş.
 - Selamlaşma, "sen kimsin?" ve benzeri gündelik sorulara doğrudan cevap ver.
 - Yosuun hakkındaki bilgi sorularında aşağıdaki bilgi dokümanını temel al.
 - Dokümanda bulunmayan fiyat, entegrasyon, özellik veya sonuçları uydurma;
@@ -39,12 +37,10 @@ class AIServiceError(RuntimeError):
         self,
         message: str,
         *,
-        provider: str = "groq",
         status_code: Optional[int] = None,
         code: str = "provider_error",
     ) -> None:
         super().__init__(message)
-        self.provider = provider
         self.status_code = status_code
         self.code = code
 
@@ -56,7 +52,6 @@ class AIService:
         self,
         *,
         api_key: Any = _UNSET,
-        provider: Optional[str] = None,
         model: Optional[str] = None,
         timeout: Optional[int] = None,
         business_context: Optional[str] = None,
@@ -72,12 +67,10 @@ class AIService:
             if isinstance(configured_api_key, str) and configured_api_key.strip()
             else None
         )
-        selected_provider = Config.AI_PROVIDER if provider is None else provider
         selected_model = Config.GROQ_MODEL if model is None else model
         selected_context = (
             Config.BUSINESS_CONTEXT if business_context is None else business_context
         )
-        self.provider = selected_provider.strip().lower()
         self.model = selected_model.strip()
         self.timeout = Config.AI_TIMEOUT_SECONDS if timeout is None else timeout
         self.business_context = selected_context.strip()
@@ -156,37 +149,20 @@ class AIService:
                 f"<bilgi_dokumani>\n{knowledge}\n</bilgi_dokumani>"
             )
 
-        history = self._validate_and_limit_history(gecmis)
+        history = self._limit_history(gecmis or [])
         return [
             {"role": "system", "content": "\n\n".join(system_parts)},
             *history,
             {"role": "user", "content": mesaj.strip()},
         ]
 
-    def _validate_and_limit_history(
+    def _limit_history(
         self,
-        gecmis: Optional[List[Dict[str, str]]],
+        gecmis: List[Dict[str, str]],
     ) -> List[Dict[str, str]]:
-        """Validate frontend history and apply count and character budgets."""
+        """Keep the most recent route-validated messages within the budgets."""
 
-        if gecmis is None:
-            return []
-        if not isinstance(gecmis, list):
-            raise ValueError("Sohbet geçmişi bir liste olmalıdır.")
-
-        normalized_history: List[Dict[str, str]] = []
-        for index, item in enumerate(gecmis):
-            if not isinstance(item, dict):
-                raise ValueError(f"Geçmiş kaydı {index} bir nesne olmalıdır.")
-            role = item.get("role")
-            content = item.get("content")
-            if role not in ALLOWED_HISTORY_ROLES:
-                raise ValueError("Geçmişte yalnızca user ve assistant rolleri kullanılabilir.")
-            if not isinstance(content, str) or not content.strip():
-                raise ValueError("Geçmiş mesaj içeriği boş olmayan bir metin olmalıdır.")
-            normalized_history.append({"role": role, "content": content.strip()})
-
-        count_limited = normalized_history[-self.max_history_messages :]
+        count_limited = gecmis[-self.max_history_messages :]
         selected_reversed: List[Dict[str, str]] = []
         used_characters = 0
         for item in reversed(count_limited):
@@ -200,11 +176,6 @@ class AIService:
     def _call_provider(self, messages: List[Dict[str, str]]) -> str:
         """Call Groq with a finite timeout and parse one assistant response."""
 
-        if self.provider != "groq":
-            raise AIServiceError(
-                "Yapılandırılan AI sağlayıcısı desteklenmiyor.",
-                provider=self.provider,
-            )
         try:
             response = requests.post(
                 GROQ_CHAT_COMPLETIONS_URL,

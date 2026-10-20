@@ -41,19 +41,15 @@ def client(app):
 
 
 @pytest.fixture
-def authenticated_client(client):
-    """Return a client with a valid administrator session."""
+def admin_headers(client):
+    """Return an Authorization header carrying a valid admin bearer token."""
 
-    client.get("/login")
-    with client.session_transaction() as active_session:
-        csrf_token = active_session["csrf_token"]
     response = client.post(
-        "/login",
-        data={
-            "username": TEST_ADMIN_USERNAME,
-            "password": TEST_ADMIN_PASSWORD,
-            "csrf_token": csrf_token,
+        "/api/admin/token",
+        json={
+            "kullanici_adi": TEST_ADMIN_USERNAME,
+            "parola": TEST_ADMIN_PASSWORD,
         },
     )
-    assert response.status_code == 303
-    return client
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.get_json()['token']}"}

@@ -26,10 +26,22 @@ class SlidingWindowRateLimiter:
         now = monotonic()
         cutoff = now - self.window_seconds
         with self._lock:
+            self._prune_expired_clients(cutoff)
             requests = self._requests.setdefault(client_key, deque())
-            while requests and requests[0] <= cutoff:
-                requests.popleft()
             if len(requests) >= self.max_requests:
                 return max(1, ceil(requests[0] + self.window_seconds - now))
             requests.append(now)
             return 0
+
+    def _prune_expired_clients(self, cutoff: float) -> None:
+        """Drop expired timestamps and forget clients with none left.
+
+        Visitor IDs are unbounded, so idle clients must not stay in memory.
+        """
+
+        for client_key in list(self._requests):
+            requests = self._requests[client_key]
+            while requests and requests[0] <= cutoff:
+                requests.popleft()
+            if not requests:
+                del self._requests[client_key]
