@@ -18,7 +18,9 @@ def test_development_app_uses_expected_safe_defaults(tmp_path):
     )
 
     assert app.config["DEBUG"] is True
-    assert app.config["GROQ_MODEL"] == "openai/gpt-oss-20b"
+    assert app.config["AI_API_URL"].startswith("https://generativelanguage.googleapis.com/")
+    assert app.config["AI_MODEL"] == "gemini-2.5-flash"
+    assert app.config["AI_REASONING_EFFORT"] == "none"
     assert app.config["AI_HISTORY_MAX_MESSAGES"] == 20
     assert app.config["AI_HISTORY_MAX_CHARS"] == 8000
     assert app.config["AI_TEMPERATURE"] == 0.3
