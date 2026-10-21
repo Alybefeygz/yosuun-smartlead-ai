@@ -1,4 +1,4 @@
-"""Simple Groq RAG boundary for Yosuun AI responses."""
+"""Simple full-document RAG boundary for Yosuun AI responses."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from app.services.knowledge_service import KnowledgeService, KnowledgeSourceErro
 from config import Config
 
 
-GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEMO_MODE_RESPONSE = (
     "Yosuun AI Asistan şu anda demo modunda çalışıyor. "
     "Yosuun hakkında bilgi almak için iletişim formunu kullanabilirsiniz."
@@ -46,12 +45,13 @@ class AIServiceError(RuntimeError):
 
 
 class AIService:
-    """Send the full knowledge document and conversation to Groq."""
+    """Send the full knowledge document and conversation to the AI provider."""
 
     def __init__(
         self,
         *,
         api_key: Any = _UNSET,
+        api_url: Optional[str] = None,
         model: Optional[str] = None,
         timeout: Optional[int] = None,
         business_context: Optional[str] = None,
@@ -59,18 +59,20 @@ class AIService:
         max_history_chars: Optional[int] = None,
         temperature: Optional[float] = None,
         max_completion_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         knowledge_service: Any = _UNSET,
     ) -> None:
-        configured_api_key = Config.GROQ_API_KEY if api_key is _UNSET else api_key
+        configured_api_key = Config.AI_API_KEY if api_key is _UNSET else api_key
         self.api_key = (
             configured_api_key.strip()
             if isinstance(configured_api_key, str) and configured_api_key.strip()
             else None
         )
-        selected_model = Config.GROQ_MODEL if model is None else model
+        selected_model = Config.AI_MODEL if model is None else model
         selected_context = (
             Config.BUSINESS_CONTEXT if business_context is None else business_context
         )
+        self.api_url = (Config.AI_API_URL if api_url is None else api_url).strip()
         self.model = selected_model.strip()
         self.timeout = Config.AI_TIMEOUT_SECONDS if timeout is None else timeout
         self.business_context = selected_context.strip()
@@ -92,6 +94,9 @@ class AIService:
             if max_completion_tokens is None
             else max_completion_tokens
         )
+        self.reasoning_effort = (
+            Config.AI_REASONING_EFFORT if reasoning_effort is None else reasoning_effort
+        ).strip()
         self.knowledge_service = (
             _DEFAULT_KNOWLEDGE_SERVICE
             if knowledge_service is _UNSET
@@ -108,6 +113,8 @@ class AIService:
             raise ValueError("AI cevap token limiti pozitif olmalıdır.")
         if not self.business_context:
             raise ValueError("BUSINESS_CONTEXT boş olamaz.")
+        if not self.api_url:
+            raise ValueError("AI API adresi boş olamaz.")
         if not self.model:
             raise ValueError("AI model adı boş olamaz.")
 
@@ -116,7 +123,7 @@ class AIService:
         mesaj: str,
         gecmis: Optional[List[Dict[str, str]]] = None,
     ) -> str:
-        """Return one Groq answer grounded in the full knowledge document."""
+        """Return one AI answer grounded in the full knowledge document."""
 
         if not self.api_key:
             return DEMO_MODE_RESPONSE
@@ -174,22 +181,25 @@ class AIService:
         return list(reversed(selected_reversed))
 
     def _call_provider(self, messages: List[Dict[str, str]]) -> str:
-        """Call Groq with a finite timeout and parse one assistant response."""
+        """Call the provider with a finite timeout and parse one answer."""
+
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_completion_tokens,
+        }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
 
         try:
             response = requests.post(
-                GROQ_CHAT_COMPLETIONS_URL,
+                self.api_url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": self.temperature,
-                    "max_completion_tokens": self.max_completion_tokens,
-                    "include_reasoning": False,
-                },
+                json=payload,
                 timeout=self.timeout,
             )
             response.raise_for_status()

@@ -9,7 +9,7 @@
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-veri%20katmanı-003B57?logo=sqlite&logoColor=white)
-![Groq](https://img.shields.io/badge/Groq-openai%2Fgpt--oss--20b-F55036)
+![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4)
 ![Tests](https://img.shields.io/badge/testler-116%20geçti-7CF56A)
 ![Render](https://img.shields.io/badge/deploy-Render-46E3B7?logo=render&logoColor=white)
 
@@ -26,7 +26,7 @@
 
 Yosuun SmartLead AI, Wix üzerinde yayınlanan Yosuun sitesinin backend'idir. Ziyaretçilerin Yosuun hakkında yapay zekâ destekli yanıtlar almasını, iletişim talebi bırakmasını ve yöneticinin bu talepleri listelemesini sağlayan Flask tabanlı bir JSON API'sidir.
 
-Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (`backend/smartlead.web.js`) `wix-fetch` ile bu API'ye sunucudan sunucuya istek atar. Groq anahtarı tanımlanmadığında sohbet güvenli bir demo cevabı döndürür.
+Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (`backend/smartlead.web.js`) `wix-fetch` ile bu API'ye sunucudan sunucuya istek atar. AI anahtarı tanımlanmadığında sohbet güvenli bir demo cevabı döndürür.
 
 | Kullanıcı | Ne yapar? | Wix tarafı | API |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (
 - Niyet sınıflandırması veya retrieval puanlaması olmadan doğrudan AI cevabı
 - Hazır FAQ cevabı kullanmadan her normal soruda AI üretimi
 - Sınırlı ve doğrulanmış sohbet geçmişi
-- Groq anahtarı yoksa çökmeyen demo modu
+- AI anahtarı yoksa çökmeyen demo modu
 
 **Lead yönetimi**
 - İsim, telefon ve isteğe bağlı mesaj ile lead oluşturma
@@ -75,7 +75,7 @@ Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (
 | Backend | Python 3.9+, Flask |
 | Veritabanı | SQLite |
 | Arayüz | Wix (Velo backend modülü + `wix-fetch`) |
-| Yapay zekâ | Groq Chat Completions API (`openai/gpt-oss-20b`) |
+| Yapay zekâ | Gemini (`gemini-2.5-flash`), OpenAI uyumlu Chat Completions API üzerinden |
 | Sunucu | Gunicorn |
 | Test | Pytest |
 | Yayın | Render |
@@ -85,7 +85,7 @@ Arayüz tamamen Wix'tedir; bu servis HTML sayfası sunmaz. Wix'in backend kodu (
 Proje, SmartLead AI öğrenci yönergesinin backend mimarisini korur. Teslimde yanlış anlaşılmayı önlemek için iki noktanın altını çizmek gerekir:
 
 - Wix istekleri tarayıcıdan değil Wix backend'inden gönderildiği için CORS açılmaz. Wix cookie session taşıyamadığından yönetici yetkisi bearer token ile verilir.
-- Yönergedeki `llama-3.1-8b-instant` modeli Groq tarafından 16 Ağustos 2026'da developer/free kullanım için kapatıldığından Groq'un önerdiği `openai/gpt-oss-20b` kullanılır. Ayrıntı: [Groq model deprecation](https://console.groq.com/docs/deprecations).
+- Yönergedeki Groq yerine Gemini kullanılır: Groq'un ücretsiz planındaki dakikalık token sınırı (8.000 TPM), bilgi dokümanının tamamı her istekte gönderildiği için dakikada yalnızca 2–3 soruya izin veriyordu. Servis OpenAI uyumlu her sağlayıcıyla çalışır; sağlayıcı `AI_API_URL`, `AI_API_KEY` ve `AI_MODEL` ile değiştirilir.
 
 ## 🏗️ Mimari
 
@@ -95,7 +95,7 @@ Wix sayfası (tarayıcı)
         └── Render: Flask API
               ├── /api/sohbet       -> AIService
               │                        ├── KnowledgeService -> dokümanın tamamı
-              │                        └── Groq -> tek AI cevabı
+              │                        └── Gemini -> tek AI cevabı
               ├── /api/leads        -> database -> SQLite
               ├── /api/admin/token  -> auth (imzalı token)
               └── /health
@@ -108,7 +108,7 @@ Ziyaretçi mesajı
   → Wix sayfası + backend     (POST /api/sohbet)
   → routes.py                 (JSON doğrulama, hız sınırı)
   → ai_service.py             (sistem prompt'u + bilgi dokümanı + geçmiş)
-  → Groq API                  (cevap üretimi)
+  → Gemini API                (cevap üretimi)
   → routes.py                 ({"basari": true, "cevap": "..."})
   → Wix sayfası               (cevabı gösterir)
 ```
@@ -122,7 +122,7 @@ Ziyaretçi mesajı
 | `app/responses.py` | Ortak JSON hata zarfı |
 | `app/routes.py` | `api` Blueprint'i, HTTP doğrulama, servis çağrısı ve response mapping |
 | `app/database.py` | Tüm SQLite bağlantıları ve SQL sorguları |
-| `app/services/ai_service.py` | Tam bilgi dokümanıyla prompt oluşturma, Groq çağrısı ve demo modu |
+| `app/services/ai_service.py` | Tam bilgi dokümanıyla prompt oluşturma, AI sağlayıcı çağrısı ve demo modu |
 | `app/services/knowledge_service.py` | Markdown bilgi dokümanını tek parça okuyup bellekte tutma |
 | `app/services/rate_limiter.py` | Public sohbet endpoint'i için process-local hız sınırı |
 | `knowledge/yosuun_mvp.md` | AI'nin her istekte tamamını kullandığı kısa bilgi dokümanı |
@@ -173,7 +173,7 @@ curl -X POST http://127.0.0.1:5000/api/sohbet \
   -d '{"mesaj": "Yosuun nedir?"}'
 ```
 
-Gerçek AI yanıtları için `.env` dosyasındaki `GROQ_API_KEY` değerini doldurun. Bu dosya Git tarafından yok sayılır; gerçek anahtarları hiçbir zaman commit etmeyin.
+Gerçek AI yanıtları için `.env` dosyasındaki `AI_API_KEY` değerine Google AI Studio'dan aldığınız Gemini anahtarını yazın. Bu dosya Git tarafından yok sayılır; gerçek anahtarları hiçbir zaman commit etmeyin.
 
 Yönetici parolasını düz metin olarak kaydetmeyin. Güçlü bir PBKDF2 hash'i üretip `.env` içindeki `ADMIN_PASSWORD_HASH` alanına ekleyin:
 
@@ -191,8 +191,10 @@ python -c "from getpass import getpass; from werkzeug.security import generate_p
 | `ADMIN_PASSWORD_HASH` | Production'da evet | Düz parola değil, PBKDF2 hash değeri |
 | `ADMIN_TOKEN_MAX_AGE_SECONDS` | Hayır | `1800`; Wix'e verilen token'ın ömrü |
 | `DATABASE_URL` | Hayır | `instance/yosuun.sqlite3` |
-| `GROQ_API_KEY` | Gerçek AI için evet | Boşsa demo modu kullanılır |
-| `GROQ_MODEL` | Hayır | `openai/gpt-oss-20b` |
+| `AI_API_KEY` | Gerçek AI için evet | Boşsa demo modu kullanılır |
+| `AI_API_URL` | Hayır | Gemini'nin OpenAI uyumlu adresi |
+| `AI_MODEL` | Hayır | `gemini-2.5-flash` |
+| `AI_REASONING_EFFORT` | Hayır | `none`; Gemini 2.5 Flash'ın düşünme adımını kapatır, boşsa gönderilmez |
 | `AI_TIMEOUT_SECONDS` | Hayır | `20` |
 | `AI_HISTORY_MAX_MESSAGES` | Hayır | `20` |
 | `AI_HISTORY_MAX_CHARS` | Hayır | `8000` |
@@ -240,7 +242,7 @@ Başarılı cevap:
 {"basari": true, "cevap": "..."}
 ```
 
-Kullanıcı mesajı, sınırlı sohbet geçmişi ve `knowledge/yosuun_mvp.md` dokümanının tamamı Groq'a gönderilir. Nihai `cevap` doğrudan AI tarafından üretilir.
+Kullanıcı mesajı, sınırlı sohbet geçmişi ve `knowledge/yosuun_mvp.md` dokümanının tamamı AI sağlayıcısına gönderilir. Nihai `cevap` doğrudan AI tarafından üretilir.
 
 ### Lead oluşturma
 
@@ -322,7 +324,7 @@ Proje; veritabanı, API, bilgi kaynağı, AI servisi, kimlik doğrulama ve yapı
 |---|---|
 | `tests/test_database.py` | SQLite sorguları ve veri katmanı |
 | `tests/test_routes.py` | API sözleşmesi, doğrulama ve hata cevapları |
-| `tests/test_ai_service.py` | Prompt oluşturma, Groq çağrısı, hata normalizasyonu, demo modu |
+| `tests/test_ai_service.py` | Prompt oluşturma, AI sağlayıcı çağrısı, hata normalizasyonu, demo modu |
 | `tests/test_knowledge_service.py` | Bilgi dokümanının okunması |
 | `tests/test_auth.py` | Yetki sınırları ve güvenlik başlıkları |
 | `tests/test_admin_token.py` | Token alma, doğrulama, süre ve deneme sınırı |
@@ -348,8 +350,8 @@ FLASK_ENV=production
 SECRET_KEY=<uzun-rastgele-secret>
 ADMIN_USERNAME=<yonetici-kullanici-adi>
 ADMIN_PASSWORD_HASH=<pbkdf2-parola-hash-degeri>
-GROQ_API_KEY=<gercek-groq-anahtari>
-GROQ_MODEL=openai/gpt-oss-20b
+AI_API_KEY=<gemini-api-anahtari>
+AI_MODEL=gemini-2.5-flash
 AI_TEMPERATURE=0.3
 AI_MAX_COMPLETION_TOKENS=500
 KNOWLEDGE_BASE_PATH=knowledge/yosuun_mvp.md
@@ -364,15 +366,15 @@ DATABASE_URL=<kalici-disk-uzerindeki-sqlite-yolu>
 
 - `.env`, SQLite runtime dosyaları, sanal ortamlar ve cache çıktıları repoya alınmaz.
 - SQL yalnızca `app/database.py` içinde ve `?` placeholder'larıyla çalışır.
-- Groq çağrısı ve API anahtarı yalnızca backend tarafındadır.
+- AI sağlayıcı çağrısı ve API anahtarı yalnızca backend tarafındadır.
 - `GET /api/leads` imzalı, süreli ve parola değişince geçersizleşen bir bearer token ile korunur.
 - Düz parola saklanmaz; Werkzeug doğrulamalı PBKDF2 hash'i kullanılır.
 - Tekrarlanan başarısız token denemeleri geçici olarak sınırlandırılır; lead ve token cevapları cache'lenmez.
 - MIME-sniffing ve (production'da) HSTS başlıkları uygulanır.
 - İstemciden `system` rolü kabul edilmez; geçmiş mesaj sayısı ve karakter bütçesi sınırlıdır.
-- Bilgi dokümanının tamamı yalnızca backend tarafından okunur ve Groq sistem mesajına eklenir.
+- Bilgi dokümanının tamamı yalnızca backend tarafından okunur ve AI sistem mesajına eklenir.
 - Sistem prompt'u bilgi dokümanı içindeki talimat benzeri metinlerin yeni komut olarak yorumlanmamasını söyler.
-- Groq timeout, ağ, HTTP, boş veya bozuk cevap hataları `AIServiceError` olarak normalize edilir ve API'den güvenli `503` cevabı döner.
+- AI sağlayıcı timeout, ağ, HTTP, boş veya bozuk cevap hataları `AIServiceError` olarak normalize edilir ve API'den güvenli `503` cevabı döner.
 - Public sohbet endpoint'i kayan pencere hız sınırıyla korunur. Wix'ten gelen isteklerde (`X-Wix-Secret` doğruysa) limit `X-Client-Id` ile ziyaretçi başına uygulanır, ayrıca tüm Wix trafiği için toplam bir limit vardır; diğer istekler IP'ye göre sınırlanır.
 - Production hata cevapları traceback veya secret içermez.
 
@@ -393,7 +395,7 @@ python -m pytest -q tests/test_knowledge_service.py tests/test_ai_service.py
 - Wix ziyaretçi kimliği tarayıcıda üretilir; kimliğini sıfırlayan biri kişisel limiti aşabilir ama Wix toplam limitini aşamaz.
 - Render free tier uykudan uyanırken ilk istek, Wix backend'inin zaman aşımından uzun sürebilir.
 - SQLite tek servisli MVP için uygundur; yatay ölçekleme için ortak bir veritabanına geçilmelidir.
-- Bilgi dokümanının tamamı her AI isteğine eklendiği için dosyanın Groq token limitinin altında tutulması gerekir. Doküman ciddi ölçüde büyürse daha sonra chunking veya vektör arama eklenebilir.
+- Bilgi dokümanının tamamı her AI isteğine eklendiği için dosyanın sağlayıcının token limitinin altında tutulması gerekir. Doküman ciddi ölçüde büyürse daha sonra chunking veya vektör arama eklenebilir.
 - Filtreleme, arama, CRM aktarımı ve lead durum yönetimi kapsam dışıdır.
 
 ## 🔗 Bağlantılar

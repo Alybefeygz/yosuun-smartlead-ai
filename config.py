@@ -12,6 +12,10 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATABASE_PATH = BASE_DIR / "instance" / "yosuun.sqlite3"
 DEFAULT_KNOWLEDGE_BASE_PATH = BASE_DIR / "knowledge" / "yosuun_mvp.md"
+# Gemini through its OpenAI-compatible endpoint; any compatible provider works.
+DEFAULT_AI_API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+)
 
 # Loading a local .env here keeps every environment lookup in one boundary.
 # Production values are supplied directly by Render environment variables.
@@ -29,7 +33,7 @@ def _parse_positive_int(raw_value: str, default: int) -> int:
 
 
 def _parse_temperature(raw_value: str, default: float) -> float:
-    """Return a Groq-compatible temperature or a deterministic safe default."""
+    """Return a provider-compatible temperature or a deterministic safe default."""
 
     try:
         value = float(raw_value)
@@ -45,8 +49,11 @@ class Config:
     ADMIN_USERNAME: Optional[str] = os.getenv("ADMIN_USERNAME") or None
     ADMIN_PASSWORD_HASH: Optional[str] = os.getenv("ADMIN_PASSWORD_HASH") or None
     DATABASE_URL = os.getenv("DATABASE_URL", str(DEFAULT_DATABASE_PATH))
-    GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY") or None
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
+    AI_API_URL = os.getenv("AI_API_URL", DEFAULT_AI_API_URL).strip()
+    AI_API_KEY: Optional[str] = os.getenv("AI_API_KEY") or None
+    AI_MODEL = os.getenv("AI_MODEL", "gemini-2.5-flash").strip()
+    # Empty means the field is not sent and the model default applies.
+    AI_REASONING_EFFORT = os.getenv("AI_REASONING_EFFORT", "none").strip()
     AI_TIMEOUT_SECONDS = _parse_positive_int(
         os.getenv("AI_TIMEOUT_SECONDS", "20"),
         default=20,
@@ -135,8 +142,10 @@ Ana marka yaklaşımı: “Sen hayatını yaşa, e-ticareti Yosuun halletsin.”
             raise RuntimeError("DATABASE_URL boş olamaz.")
         if not cls.BUSINESS_CONTEXT:
             raise RuntimeError("BUSINESS_CONTEXT boş olamaz.")
-        if not cls.GROQ_MODEL:
-            raise RuntimeError("GROQ_MODEL boş olamaz.")
+        if not cls.AI_API_URL:
+            raise RuntimeError("AI_API_URL boş olamaz.")
+        if not cls.AI_MODEL:
+            raise RuntimeError("AI_MODEL boş olamaz.")
         if not cls.KNOWLEDGE_BASE_PATH:
             raise RuntimeError("KNOWLEDGE_BASE_PATH boş olamaz.")
 

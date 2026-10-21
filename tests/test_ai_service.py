@@ -8,7 +8,6 @@ from app.services.ai_service import (
     AIService,
     AIServiceError,
     DEMO_MODE_RESPONSE,
-    GROQ_CHAT_COMPLETIONS_URL,
 )
 from app.services.knowledge_service import KnowledgeSourceError
 
@@ -116,20 +115,43 @@ def test_provider_success_returns_trimmed_answer_and_expected_payload(monkeypatc
     monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
     service = AIService(
         api_key="test-api-key",
-        model="openai/gpt-oss-20b",
+        api_url="https://ai.example.test/v1/chat/completions",
+        model="test-model",
         timeout=17,
+        max_completion_tokens=321,
+        reasoning_effort="none",
         knowledge_service=FakeKnowledgeService(),
     )
 
     result = service.yanit_uret("Sen kimsin kral?", [])
 
     assert result == "Ben Yosuun AI asistanıyım kral!"
-    assert captured["url"] == GROQ_CHAT_COMPLETIONS_URL
+    assert captured["url"] == "https://ai.example.test/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer test-api-key"
     assert captured["timeout"] == 17
-    assert captured["json"]["model"] == "openai/gpt-oss-20b"
+    assert captured["json"]["model"] == "test-model"
     assert captured["json"]["messages"][-1]["content"] == "Sen kimsin kral?"
-    assert captured["json"]["include_reasoning"] is False
+    assert captured["json"]["max_tokens"] == 321
+    assert captured["json"]["reasoning_effort"] == "none"
+
+
+def test_empty_reasoning_effort_is_not_sent(monkeypatch):
+    captured = {}
+
+    def fake_post(_url, **kwargs):
+        captured.update(kwargs)
+        return FakeResponse({"choices": [{"message": {"content": "Cevap"}}]})
+
+    monkeypatch.setattr(ai_service_module.requests, "post", fake_post)
+    service = AIService(
+        api_key="test-api-key",
+        reasoning_effort="",
+        knowledge_service=None,
+    )
+
+    service.yanit_uret("Merhaba", [])
+
+    assert "reasoning_effort" not in captured["json"]
 
 
 def test_knowledge_source_error_is_normalized():
@@ -233,6 +255,7 @@ def test_malformed_empty_or_truncated_response_is_rejected(monkeypatch, payload)
         {"temperature": 2.1},
         {"max_completion_tokens": 0},
         {"model": ""},
+        {"api_url": ""},
         {"business_context": ""},
     ],
 )
